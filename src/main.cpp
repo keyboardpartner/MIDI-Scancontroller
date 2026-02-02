@@ -940,8 +940,8 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (Timer1Semaphore) {
-    Timer1Semaphore = 0;
+  while (Timer1Semaphore) {
+    Timer1Semaphore--;
     ScanPedal();    // 25 us bei 20 MHz
     switch (MenuValues[m_driver_type]) {
       case drv_fatar1:
