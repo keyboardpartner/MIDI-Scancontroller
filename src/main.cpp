@@ -99,8 +99,9 @@ bool lcdPresent = false;
 
 uint8_t TimeToDyn[256]; // Lookup-Tabelle Zeitwert -> Dynamikwert
 
-enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom};
-const String DriverTypes[MENU_DRIVERCOUNT] = {"Scan16/61", "FatarScan1-61", "FatarScan2", "Custom"};
+enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom, drv_fcktrmp};
+const String Msg = {"FCK TRMP + FCK AFD"};
+const String DriverTypes[] = {"Scan16/61", "FatarScan1-61", "FatarScan2", "Custom"};
 
 enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_cubicblend};
 uint8_t MenuItemActive = m_upper_channel;
@@ -894,7 +895,9 @@ void setup() {
     MenuValues[i] = eep_val;
   }
   configurePorts(MenuValues[m_driver_type]); // Port Initialisierung je nach Treibertyp
-  Timer1.initialize(500); // Timer1 auf 500 us einstellen
+  MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1  Timer1.initialize(500); // Timer1 auf 500 us einstellen
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
   if (MenuValues[m_driver_type] >= drv_fatar1) {
     Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
@@ -911,8 +914,9 @@ void setup() {
     // Display gefunden
     lcdPresent = true;
     lcd.begin(16, 2);
+    delay(500); // Warte auf Display-Start
     lcd.setCursor(0, 0);
-    lcd.print("FatarScanCtrl");
+    lcd.print("ScanCtrl 0.9");
     lcd.setCursor(0, 1);
     lcd.print("C.Meyer 2026");
     lcd.createChar(LCD_ARW_UP, lcd.arrowUp);
@@ -921,19 +925,17 @@ void setup() {
     lcd.createChar(LCD_ARW_LT_GREY, lcd.arrowLeftGrey);
     lcd.createChar(LCD_ARW_UD, lcd.arrowUpDown);
     lcd.createChar(LCD_ARW_UD_GREY, lcd.arrowUpDownGrey);
-    blinkLED(3);
+    blinkLED(5);
     displayMenuItem(MenuItemActive);
   } else {
     // Kein Display gefunden
-    blinkLED(5);
+    blinkLED(3);
   }
 #else
   // Kein Display-Support
-  blinkLED(2);
+  blinkLED(3);
 #endif
-  MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1
+
 }
 
 // #############################################################################
