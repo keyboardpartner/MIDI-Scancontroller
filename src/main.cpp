@@ -100,7 +100,7 @@ bool lcdPresent = false;
 uint8_t TimeToDyn[256]; // Lookup-Tabelle Zeitwert -> Dynamikwert
 
 enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom, drv_fcktrmp};
-const String Msg = {"FCK TRMP + FCK AFD"};
+const String Msg[] = {"FCK TRMP", "FCK AFD"};
 const String DriverTypes[] = {"Scan16/61", "FatarScan1-61", "FatarScan2", "Custom"};
 
 enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_cubicblend};
@@ -895,16 +895,19 @@ void setup() {
     MenuValues[i] = eep_val;
   }
   configurePorts(MenuValues[m_driver_type]); // Port Initialisierung je nach Treibertyp
-  MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1  Timer1.initialize(500); // Timer1 auf 500 us einstellen
+  CreateDynTable(MenuValues[m_mindyn], MenuValues[m_cubicblend]);
+
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
   if (MenuValues[m_driver_type] >= drv_fatar1) {
     Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
   } else {
     Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
   }
-  CreateDynTable(MenuValues[m_mindyn], MenuValues[m_cubicblend]);
+  Timer1.initialize(500); // Timer1 auf 500 us einstellen
+
+  MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1
 
 #ifdef LCD_I2C
   Wire.begin();
