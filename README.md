@@ -2,11 +2,13 @@
 
 ![Controller Pic](https://github.com/keyboardpartner/MIDI-Scancontroller/blob/main/docs/ScanFatarContr_02_small.jpg)
 
-AVR based scan controller for Fatar and SR4014 keybeds with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel)
+### Project for PlatformIO and Arduino IDE
 
-Uses KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface boards
+AVR based scan controller for Fatar and SR4014 keybeds with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves min. 2 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes approx. 260 µs plus 80 µs for 25-not pedal.
 
-Project for PlatformIO and Arduino IDE
+Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface boards, see schematics in /docs.
+
+
 
 New approach for velocity table:
 
