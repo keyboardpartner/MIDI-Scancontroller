@@ -1,8 +1,10 @@
-# MIDI-Scancontroller
+# MIDI Scan Controller
 
 ![Controller Pic](https://github.com/keyboardpartner/MIDI-Scancontroller/blob/main/docs/ScanFatarContr_02_small.jpg)
 
-AVR based scan controller for Fatar and SR4014 keybeds with velocity slope control and menu system (if eqipped with KeyboardPartner MenuPanel)
+AVR based scan controller for Fatar and SR4014 keybeds with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel)
+
+Uses KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface boards
 
 Project for PlatformIO and Arduino IDE
 
@@ -11,8 +13,8 @@ New approach for velocity table:
 ```cpp
 void CreateDynTable(uint8_t mindyn, uint8_t slope) {
   // Erstelle inverse Lookup-Tabelle Timerwert -> Dynamikwert
-  // Tastenanschlagzeit 0..255 (255 = extrem schnell)
-  // mindyn: minimaler Dynamikwert 0..127
+  // Index: gemessene Tastenanschlagzeit 255..0 (255 = extrem schnell)
+  // mindyn: minimaler Dynamikwert 0..40
   // slope: 1 = nahezu linear, 20 = stark 1/t-ähnlich
   digitalWrite(LED_PIN, LOW); // sets the LED on
   if (slope < 1) slope = 1;

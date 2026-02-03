@@ -348,8 +348,8 @@ void blinkLED(uint8_t times) {
 
 void CreateDynTable(uint8_t mindyn, uint8_t slope) {
   // Erstelle inverse Lookup-Tabelle Timerwert -> Dynamikwert
-  // Tastenanschlagzeit 0..255 (255 = extrem schnell)
-  // mindyn: minimaler Dynamikwert 0..127
+  // Index: gemessene Tastenanschlagzeit 255..0 (255 = extrem schnell)
+  // mindyn: minimaler Dynamikwert 0..40
   // slope: 1 = nahezu linear, 20 = stark 1/t-ähnlich
   digitalWrite(LED_PIN, LOW); // sets the LED on
   if (slope < 1) slope = 1;
