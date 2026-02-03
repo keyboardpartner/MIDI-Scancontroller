@@ -1,6 +1,6 @@
 # MIDI-Scancontroller
 
-![Controller Pic](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png)
+![Controller Pic](https://github.com/keyboardpartner/MIDI-Scancontroller/blob/main/docs/ScanFatarContr_02_small.jpg)
 
 AVR based scan controller for Fatar and SR4014 keybeds with velocity slope control and menu system (if eqipped with KeyboardPartner MenuPanel)
 
