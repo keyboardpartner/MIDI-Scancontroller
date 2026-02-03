@@ -5,6 +5,7 @@ Project for PlatformIO and Arduino IDE
 
 New approach for velocity table:
 
+```javascript
   void CreateDynTable(uint8_t mindyn, uint8_t slope) {
     // Erstelle inverse Lookup-Tabelle Timerwert -> Dynamikwert
     // Tastenanschlagzeit 0..255 (255 = extrem schnell)
@@ -21,5 +22,6 @@ New approach for velocity table:
     }
     digitalWrite(LED_PIN, HIGH);  // sets the LED off
   }
+```
 
 C. Meyer 2/2026
