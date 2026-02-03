@@ -1,0 +1,1 @@
+type  optiboot_atmega328.hex .\.pio\build\ATmega328P_16MHz\firmware.hex > firmware.hex
