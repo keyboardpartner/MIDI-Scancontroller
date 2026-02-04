@@ -1,0 +1,2 @@
+rem Copy Bootloader and rename to firmware.hex for arduino upload
+type optiboot_atmega328_20M.hex .\.pio\build\ATmega328P_20MHz_USBasp\firmware.hex > firmware.hex

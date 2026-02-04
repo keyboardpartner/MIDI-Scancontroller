@@ -112,37 +112,6 @@ const int8_t MenuValueMax[MENU_ITEMCOUNT] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 6
 const int8_t MenuValueDefaults[MENU_ITEMCOUNT] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_DYNSLOPE};
 int8_t MenuValues[MENU_ITEMCOUNT];
 
-
-// #############################################################################
-//
-//     ####### #     #  #####  ####### ######  ####### ######
-//     #       ##    # #     # #     # #     # #       #     #
-//     #       # #   # #       #     # #     # #       #     #
-//     #####   #  #  # #       #     # #     # #####   ######
-//     #       #   # # #       #     # #     # #       #   #
-//     #       #    ## #     # #     # #     # #       #    #
-//     ####### #     #  #####  ####### ######  ####### #     #
-//
-// #############################################################################
-
-uint8_t lastState = B00000011; // Initialer Zustand der Encoder-Bits
-int16_t encoderPosition = 0;
-int16_t encoderDelta = 0;
-
-int16_t GetEncoderDelta(uint8_t &lastState) {
-  int16_t delta = 0;
-  uint8_t currentState = (PINC & B00001100) >> 2; // Nur die beiden relevanten Bits lesen und nach rechts verschieben
-  if (currentState != lastState) {
-    // Zustandsänderung erkannt, nur ganze Schritte zählen
-    if ((lastState == 0b00 && currentState == 0b10)) {
-      delta = 1; // Vorwärts
-    } else if ((lastState == 0b00  && currentState == 0b01)) {
-      delta = -1; // Rückwärts
-    }
-    lastState = currentState;
-  }
-  return delta;
-}
 // #############################################################################
 //
 //      #####  #######    #    ####### #######  #####
@@ -590,7 +559,7 @@ void displayMenuItem(uint8_t itemIndex) {
 
 void handleMenu() {
   // Menü-Handling hier
-  encoderDelta = GetEncoderDelta(lastState);
+  int16_t encoderDelta = lcd.getEncoderDelta();
   if (encoderDelta != 0) {
     // Encoder hat sich bewegt
     int8_t oldValue = MenuValues[MenuItemActive];

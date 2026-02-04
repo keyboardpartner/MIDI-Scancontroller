@@ -123,6 +123,7 @@ public:
   void cursor_off();      					// alias for noCursor()
   void load_custom_character(uint8_t char_num, uint8_t *rows);	// alias for createChar()
   void printstr(const char[]);
+  int16_t getEncoderDelta();
 
 private:
   void init_priv();
@@ -135,6 +136,9 @@ private:
   uint8_t _cols;
   uint8_t _rows;
   uint8_t _current_col;
+  uint8_t _lastState = B00000011; // Initialer Zustand der Encoder-Bits
+  int16_t _encoderPosition = 0;
+  int16_t _encoderDelta = 0;
 };
 
 #endif

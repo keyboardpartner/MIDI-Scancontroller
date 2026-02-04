@@ -10,7 +10,7 @@
 //
 // #############################################################################
 */
-// Class Lib for KBP MenuPanel, C. Meyer 1/2026
+// Class Lib for KBP MenuPanel with rotary encoder and buttons, C. Meyer 1/2026
 // Based on work from DFROBOT
 
 #include "MenuPanel.h"
@@ -115,6 +115,19 @@ void MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
 	// Initialize to default text direction (for roman languages)
 	home();
 }
+
+// #############################################################################
+//
+//     #        #####  ######
+//     #       #     # #     #
+//     #       #       #     #
+//     #       #       #     #
+//     #       #       #     #
+//     #       #     # #     #
+//     #######  #####  ######
+//
+// #############################################################################
+
 
 /********** high level commands, for the user! */
 void MenuPanel::clear(){
@@ -244,6 +257,18 @@ void MenuPanel::send(uint8_t value, uint8_t mode) {
 	delayMicroseconds(50);
 }
 
+// #############################################################################
+//
+//     ######  #     # ####### ####### ####### #     #  #####
+//     #     # #     #    #       #    #     # ##    # #     #
+//     #     # #     #    #       #    #     # # #   # #
+//     ######  #     #    #       #    #     # #  #  #  #####
+//     #     # #     #    #       #    #     # #   # #       #
+//     #     # #     #    #       #    #     # #    ## #     #
+//     ######   #####     #       #    ####### #     #  #####
+//
+// #############################################################################
+
 // read a byte from PCA9555 port 1 (buttons)
 // benötigt etwa 130 µs (inkl. I2C Overhead) bei 400 kHz
 uint8_t MenuPanel::getButtons() {
@@ -268,7 +293,37 @@ uint8_t MenuPanel::getButtonsWaitReleased() {
 	return last_buttons;
 }
 
+// #############################################################################
+//
+//     ####### #     #  #####  ####### ######  ####### ######
+//     #       ##    # #     # #     # #     # #       #     #
+//     #       # #   # #       #     # #     # #       #     #
+//     #####   #  #  # #       #     # #     # #####   ######
+//     #       #   # # #       #     # #     # #       #   #
+//     #       #    ## #     # #     # #     # #       #    #
+//     ####### #     #  #####  ####### ######  ####### #     #
+//
+// #############################################################################
+
+int16_t MenuPanel::getEncoderDelta() {
+  int16_t delta = 0;
+  uint8_t currentState = (PINC & B00001100) >> 2; // Nur die beiden relevanten Bits lesen und nach rechts verschieben
+  if (currentState != _lastState) {
+    // Zustandsänderung erkannt, nur ganze Schritte zählen
+    if ((_lastState == 0b00 && currentState == 0b10)) {
+      delta = 1; // Vorwärts
+    } else if ((_lastState == 0b00  && currentState == 0b01)) {
+      delta = -1; // Rückwärts
+    }
+    _lastState = currentState;
+  }
+  return delta;
+}
+
+
+// #############################################################################
 // Alias functions
+// #############################################################################
 
 void MenuPanel::cursor_on(){
 	cursor();
