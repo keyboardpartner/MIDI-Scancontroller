@@ -41,7 +41,7 @@ ProgUsrRow=True
 [Fuses]
 LockBits0=0
 FuseBits0=0
-FuseBits1=0
+FuseBits1=1
 FuseBits2=2
 FuseBits3=0
 FuseBits4=0
