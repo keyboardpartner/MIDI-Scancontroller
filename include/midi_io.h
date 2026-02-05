@@ -171,10 +171,9 @@ bool MidiMerge() {
 }
 
 
-void MidiSendNoteOn(uint8_t channel, uint8_t note, uint8_t timerval) {
+void MidiSendNoteOn(uint8_t channel, uint8_t note, uint8_t mididyn) {
   // Dynamikwert aus Timerwert berechnen, je kleiner der Timerwert, desto größer die Dynamik
   uint8_t cmd_byte = 0x90 + channel - 1;
-  uint8_t mididyn = TimeToDyn[timerval];
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);
     LastRunningStatusSent = cmd_byte;
@@ -204,7 +203,7 @@ void MidiSendNoteOff(uint8_t channel, uint8_t note) {
 }
 
 void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
-  // Dynamikwert aus Timerwert berechnen, je kleiner der Timerwert, desto größer die Dynamik
+  // CC senden
   uint8_t cmd_byte = 0xB0 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);

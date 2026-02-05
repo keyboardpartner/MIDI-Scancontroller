@@ -31,4 +31,9 @@ void CreateDynTable(uint8_t mindyn, uint8_t slope) {
 }
 ```
 
+Version Info:
+ * Added support for analog inputs with KeyboardPartner MPX boards (SR-based multiplexer)
+ * Faster bit manipulation on ports by inline assembler macros
+
+
 C. Meyer 2/2026

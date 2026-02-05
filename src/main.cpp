@@ -19,13 +19,11 @@
 #include <EEPROM.h>
 #include <TimerOne.h>
 #include "midi_io.h"
+#include "MenuPanel.h"
+#include "Panel16.h"
 
 #define LED_PIN 2 // Pin für LED
 #define EEPROM_MENUDEFAULTS 16 // Startadresse im EEPROM für gespeicherte Werte
-
-//#define FATARSCAN_NEW // Neue FATAR Scan-Controller Platine
-//#define FATARSCAN_OLD // Alte FATAR Scan-Controller Platine
-#define SCAN_SR61 // Klassische 4014-Scan-Platine Scan16, Scan61 ggf. plus BASS25
 
 // FATAR 1-61 Scan-Controller NEU Pinbelegung
 #define FT_TDRV_A   PORTB0
@@ -37,6 +35,11 @@
 #define FT_TEST  PORTD5
 #define FT_UPR   PIND6
 #define FT_LWR   PIND7
+// Fast port bit manipulation macros
+#define _SET_FT_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
+#define _CLR_FT_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
+#define _SET_FT_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_LOAD))
+#define _CLR_FT_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_LOAD))
 
 // FATAR 2 Scan-Controller ALT Pinbelegung
 #define FT_SENSE_INC   PORTB0
@@ -47,6 +50,38 @@
 #define FT_TDRV_RST  PORTD5
 #define BR_LWR   PIND6
 #define MK_LWR   PIND7
+// Fast port bit manipulation macros
+#define _SET_FT_SENSE_INC  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
+#define _CLR_FT_SENSE_INC  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
+#define _SET_FT_SENSE_RST  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_RST))
+#define _CLR_FT_SENSE_RST  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_RST))
+#define _SET_FT_TDRV_INC  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_INC))
+#define _CLR_FT_TDRV_INC  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_INC))
+#define _SET_FT_TDRV_RST  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_RST))
+#define _CLR_FT_TDRV_RST  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_RST))
+
+// BASS und SR61 4014 Scan-Controller Pinbelegung
+#define SR_CLK   PORTB0 // auf Prototyp V01 ändern!
+#define SR_LOAD  PORTB1 // auf Prototyp V01 ändern!
+#define SR_UPR   PINB3
+#define SR_LWR   PINB4
+#define SR_PED   PINB5
+// Fast port bit manipulation Macros
+#define _SET_SR_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_CLK))
+#define _CLR_SR_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_CLK))
+#define _SET_SR_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
+#define _CLR_SR_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
+
+
+// MPX Port Definitions and Fast Manipulation Macros
+#define MPX_DATA PORTC0
+#define MPX_CLK  PORTC1
+// Fast port bit manipulation macros
+#define _NOP  asm volatile ("nop")
+#define _SET_MPX_DATA asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
+#define _CLR_MPX_DATA asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
+#define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
+#define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
 
 
 #define KEYS_PER_GROUP 8
@@ -55,15 +90,9 @@
 #define TIMER_MAX 255
 #define TIMER_DIV ((TIMER_MAX * 2) + MIDI_MINDYN)
 
-// BASS und SR61 4014 Scan-Controller Pinbelegung
-#define SR_CLK   PORTB0 // auf Prototyp V01 ändern!
-#define SR_LOAD  PORTB1 // auf Prototyp V01 ändern!
-#define SR_UPR   PINB3
-#define SR_LWR   PINB4
-#define SR_PED   PINB5
-
 #define PEDALKEYS 25
 #define MANUALKEYS 61
+#define ANLG_INPUTS 4 // Analoge Eingänge für MIDI-CC-Potentiometer, 0 für keine analogen Eingänge
 
 // Default MIDI Einstellungen
 #define MIDI_BASE_UPR 36
@@ -75,14 +104,23 @@
 #define MIDI_CH_PED 3
 
 #define MIDI_MINDYN 10
-#define MIDI_DYNSLOPE 10
+#define MIDI_DYNSLOPE 12
+#define MIDI_MAXDYNADJ 5
 
 uint8_t UpperKeyState[128]; // Zustand der Tasten
 uint8_t LowerKeyState[128]; // Zustand der Tasten
 uint8_t PedalContactState[PEDALKEYS]; // Zustand der Pedaltasten
+uint8_t AnyKeyPressed = false;
 
 uint8_t UpperKeyTimer[128]; // Timer für jede Taste
 uint8_t LowerKeyTimer[128]; // Timer für jede Taste
+
+uint8_t AnalogInputs[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
+uint8_t AnalogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
+uint8_t AnalogInputActive = 0;
+
+volatile uint8_t Timer1Semaphore = 0;
+volatile uint8_t Timer1RoundRobin = 0;
 
 #define LCD_I2C
 
@@ -94,22 +132,30 @@ uint8_t LowerKeyTimer[128]; // Timer für jede Taste
 #endif
 bool lcdPresent = false;
 
+#define PANEL16
+#ifdef PANEL16
+  // Für LCD mit I2C-Interface
+  #include "MenuPanel.h"
+  #define PANEL16_I2C_ADDR 0x62
+  Panel16 panel16(PANEL16_I2C_ADDR);
+#endif
+bool panel16Present = false;
+
 // Menu System Variables
 
-#define MENU_ITEMCOUNT 9
+#define MENU_ITEMCOUNT 10
 #define MENU_DRIVERCOUNT 4
 
-
-enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom, drv_fcktrmp};
-const String Msg[] = {"FCK TRMP", "FCK AFD"};
+enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom};
 const String DriverTypes[] = {"Scan16/61", "FatarScan1-61", "FatarScan2", "Custom"};
 
-enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_cubicblend};
+enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_maxdynadj, m_slope};
 uint8_t MenuItemActive = m_upper_channel;
-const String MenuItems[MENU_ITEMCOUNT] = {"Upper Channel", "Lower Channel", "Pedal Channel", "Kbd Driver", "Upper Base", "Lower Base", "Pedal Base", "Velocity Min.", "Velocity Slope"};
-const int8_t MenuValueMin[MENU_ITEMCOUNT] = {1, 1, 1, 0, 12, 12, 12, 0, 0};
-const int8_t MenuValueMax[MENU_ITEMCOUNT] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 60, 60, 60, 40, 20};
-const int8_t MenuValueDefaults[MENU_ITEMCOUNT] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_DYNSLOPE};
+const String MenuItems[] = {"Upper Ch", "Lower Ch", "Pedal Ch", "Kbd Driver", "Upper Base", "Lower Base", "Pedal Base", "Vel. Min", "Vel. Max Adj.", "Vel. Slope"};
+const int8_t MenuValueMin[] = {1, 1, 1, 0, 12, 12, 12, 0, 0, 0};
+const int8_t MenuValueMax[] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 60, 60, 60, 40, 40, 20};
+const int8_t MenuValueDefaults[] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_MAXDYNADJ, MIDI_DYNSLOPE};
+const String Msg[] = {"FCK TRMP", "FCK AFD"};
 int8_t MenuValues[MENU_ITEMCOUNT];
 
 // #############################################################################
@@ -128,7 +174,6 @@ int8_t MenuValues[MENU_ITEMCOUNT];
 enum {t_idle, t_forward, t_pressed, t_reverse};
 
 void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
-  uint8_t tval;
   switch (UpperKeyState[scankey]) {
   case t_idle:
     if (br || mk) {
@@ -143,18 +188,20 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       // Make-Kontakt geschlossen, Taste voll gedrückt
       // MIDI senden und Zustand auf t_pressed setzen
       UpperKeyState[scankey] = t_pressed;
-      tval = UpperKeyTimer[scankey];
-      MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, tval);  // sende MIDI NoteOn mit Dynamikwert
+      uint16_t tval = UpperKeyTimer[scankey] + MenuValues[m_maxdynadj];
+      if (tval > 255) tval = 255;
+      uint8_t mididyn = TimeToDyn[tval];
+      MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
     } else if (br) {
       // Break-Kontakt noch geschlossen, Timer dekrementieren
-      tval = UpperKeyTimer[scankey];
+      uint8_t tval = UpperKeyTimer[scankey];
       if (tval > 0) {
         tval--;
         UpperKeyTimer[scankey] = tval;
       } else {
         // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
         UpperKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, 1);  // sende MIDI NoteOn mit Dynamikwert
+        MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, MenuValues[m_mindyn]);  // sende MIDI NoteOn mit Dynamikwert
       }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
@@ -181,7 +228,6 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
 
 
 void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
-  uint8_t tval;
   switch (LowerKeyState[scankey]) {
   case t_idle:
     if (br || mk) {
@@ -196,18 +242,20 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       // Make-Kontakt geschlossen, Taste voll gedrückt
       // MIDI senden und Zustand auf t_pressed setzen
       LowerKeyState[scankey] = t_pressed;
-      tval = LowerKeyTimer[scankey];
-      MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, tval);  // sende MIDI NoteOn mit Dynamikwert
+      uint16_t tval = LowerKeyTimer[scankey] + MenuValues[m_maxdynadj];
+      if (tval > 255) tval = 255;
+      uint8_t mididyn = TimeToDyn[tval];
+      MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
     } else if (br) {
       // Break-Kontakt noch geschlossen, Timer dekrementieren
-      tval = LowerKeyTimer[scankey];
+      uint8_t tval = LowerKeyTimer[scankey];
       if (tval > 0) {
         tval--;
         LowerKeyTimer[scankey] = tval;
       } else {
         // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
         LowerKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, 1);  // sende MIDI NoteOn mit Dynamikwert
+        MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, MenuValues[m_mindyn]);  // sende MIDI NoteOn mit Dynamikwert
      }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
@@ -245,22 +293,15 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
 
 void ScanPedal() {
   // Pedal mit BASS25 scannen, Zeit für 25 Pedaltasten etwa 25 us bei 20 MHz Takt
-  uint8_t scankey; // aktuelle Taste
-  uint8_t portb_idle = (PORTB | B00111000) & ~((1 << SR_CLK) | (1 << SR_LOAD)); // Set SR_CLK and SR_LOAD LOW for idle
-  uint8_t portb_load = portb_idle | (1 << SR_LOAD);
-  uint8_t portb_loadclk = portb_load | (1 << SR_CLK);
-  uint8_t portb_clk = portb_idle | (1 << SR_CLK);
-  uint8_t mk_ped, mk_old;
-
-  PORTB = portb_load;
-  asm volatile ("nop"); // Setup-Time für CMOS-4014
-  asm volatile ("nop");
-  asm volatile ("nop");
-  PORTB = portb_loadclk;
-  asm volatile ("nop"); // Clock-Dauer für CMOS-4014
-  asm volatile ("nop");
-  asm volatile ("nop");
-  PORTB = portb_idle;   // zurück zu idle
+  uint8_t scankey, mk_ped, mk_old; // aktuelle Taste
+  _SET_SR_LOAD;
+  _NOP;
+  _NOP;
+  _SET_SR_CLK;
+  _NOP;
+  _NOP;
+  _CLR_SR_CLK;
+  _CLR_SR_LOAD; // Load LOW
   for (scankey = 0; scankey < PEDALKEYS; scankey++) {
     mk_ped = PINB & (1 << SR_PED); // Make-Kontakt Pedal lesen, active LOW
     // Pedal hat nur Make-Kontakt, deshalb keine State Machine
@@ -276,11 +317,7 @@ void ScanPedal() {
         MidiSendNoteOff(MenuValues[m_pedal_channel], MenuValues[m_pedal_base] + scankey);
       }
     }
-    PORTB = portb_clk;
-    asm volatile ("nop"); // Clock-Dauer für CMOS-4014
-    asm volatile ("nop");
-    asm volatile ("nop");
-    PORTB = portb_idle;   // zurück zu idle
+
   }
 }
 
@@ -300,25 +337,23 @@ void ScanManualsFatar1_61() {
   // Upper und Lower scannen
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
-  uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
-  uint8_t portd_load = portd_idle & ~(1 << FT_LOAD); // Set bit 4 LOW for load
-  uint8_t portd_loadclk = portd_load | (1 << FT_CLK); // Set bit 3 HIGH for clock
-  uint8_t portd_clk = portd_idle | (1 << FT_CLK); // Set bit 3 HIGH for clock
-  uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
+  AnyKeyPressed = false;
   uint8_t scankey = 0; // aktuelle Taste
+  uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
+  uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
   PORTD = portd_idle;  // zurück zu idle
   for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
     PORTB = (PORTB & B11111000) | tdrive; // nur unterste 3 Bits, als T-Drive an Decoder
     delayMicroseconds(1); // kurze Pause, Settle time
     // SRs einer Gruppe laden, an FT_UPR und FT_LWR steht danach das erste Bit an
-    PORTD = portd_load;    // FT_LOAD auf LOW
-    PORTD = portd_loadclk; // FT_CLK auf HIGH
-    PORTD = portd_idle;    // FT_LOAD auf HIGH, FT_CLK auf LOW
+    _CLR_FT_LOAD; // FT_LOAD auf LOW
+    _SET_FT_CLK;  // FT_CLK auf HIGH
+    PORTD = portd_idle;  // zurück zu idle
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
       if (pulsecount != 0) {
         // nur nächstes Bit
-        PORTD = portd_clk;  // FT_CLK auf HIGH
-        PORTD = portd_idle; // FT_CLK auf LOW
+        _SET_FT_CLK;  // FT_CLK auf HIGH
+        _CLR_FT_CLK;  // FT_CLK auf LOW
       }
       // jetzt liegt das MK-Bit an FT_UPR und FT_LWR an
       // Berechnung ist auch eine kleine Pause zum Settle des Eingangspins:
@@ -327,9 +362,10 @@ void ScanManualsFatar1_61() {
       mk_upr = PIND & (1 << FT_UPR); // Make-Kontakt Upper lesen
       mk_lwr = PIND & (1 << FT_LWR); // Make-Kontakt Lower lesen
       // BR-Bit(s) einlesen
-      PORTD = portd_clk;  // FT_CLK auf HIGH
-      PORTD = portd_idle; // FT_CLK auf LOW
-      asm volatile ("nop"); // kleine Pause zum Settle, WICHTIG!
+      _SET_FT_CLK;  // FT_CLK auf HIGH
+      _CLR_FT_CLK;  // FT_CLK auf LOW
+      AnyKeyPressed = AnyKeyPressed | br_lwr | br_upr; // kleine Pause zum Settle, WICHTIG!
+      // asm volatile ("nop");
       br_upr = PIND & (1 << FT_UPR); // Break-Kontakt Upper lesen
       br_lwr = PIND & (1 << FT_LWR); // Break-Kontakt Lower lesen
       UpperCheckstate(scankey, mk_upr, br_upr);
@@ -346,22 +382,20 @@ void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
+  AnyKeyPressed = false;
   uint8_t portd_tdrive_idle = PORTD & B00000111;
-  uint8_t portd_tdrive_inc = portd_tdrive_idle | (1 << FT_TDRV_INC);
-  uint8_t portd_tdrive_rst = portd_tdrive_idle | (1 << FT_TDRV_RST);
   uint8_t portb_sense_idle = PORTB & B11111000;
-  uint8_t portb_sense_inc = portb_sense_idle | (1 << FT_SENSE_INC);
-  uint8_t portb_sense_rst = portb_sense_idle | (1 << FT_SENSE_RST);
+
   uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
   uint8_t scankey = 0; // aktuelle Taste
   // Reset des 4017 T-Drive Counters
   // Reset des 4024 Sense Counters
-  PORTD = portd_tdrive_rst;
-  PORTB = portb_sense_rst;
-  asm volatile ("nop"); // Pulsdauer für Reset
-  asm volatile ("nop");
-  PORTD = portd_tdrive_idle;
-  PORTB = portb_sense_idle;
+  _SET_FT_TDRV_RST;
+  _SET_FT_SENSE_RST;
+  _NOP;
+  _NOP;
+  _CLR_FT_TDRV_RST;
+  _CLR_FT_SENSE_RST;
   for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
     delayMicroseconds(1); // kurze Pause nach Setzen von T Drive, Settle time
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
@@ -373,20 +407,19 @@ void ScanManualsFatar2() {
       br_lwr = PIND & (1 << BR_LWR); // Break-Kontakt Lower lesen
       // Increment Sense Counter
       // Überlauf ist schon für nächste Gruppe, da der 4024 weiter durchläuft
-      PORTB = portb_sense_inc;
-      asm volatile ("nop"); // Pulsdauer für 4024 Increment
-      asm volatile ("nop");
-      PORTB = portb_sense_idle;
+      _SET_FT_SENSE_INC;
+      AnyKeyPressed = AnyKeyPressed | br_lwr | br_upr; // Pulsdauer für 4024 Increment
+      _CLR_FT_SENSE_INC;
       // Settle Time nutzen zur Auswertung der Kontakte
       UpperCheckstate(scankey, mk_upr, br_upr);
       LowerCheckstate(scankey, mk_lwr, br_lwr);
       scankey += KEYS_PER_GROUP;
     }
     // Letzte Taste in der Sense-Gruppe, danach T-Drive inkrementieren
-    PORTD = portd_tdrive_inc;  // FT_CLK auf HIGH
-    asm volatile ("nop"); // Pulsdauer für 4017 Increment
-    asm volatile ("nop");
-    PORTD = portd_tdrive_idle; // FT_CLK auf LOW
+    _SET_FT_TDRV_INC;  // FT_CLK auf HIGH
+    _NOP;
+    _NOP;
+    _CLR_FT_TDRV_INC; // FT_CLK auf LOW
     scankey++;
   }
 }
@@ -395,23 +428,18 @@ void ScanManualsFatar2() {
 
 void ScanManualsSR61() {
   // Manual mit 4014 SR scannen, Zeit für 61 Manualtasten etwa 81 us bei 20 MHz Takt
+  AnyKeyPressed = false; //Timing hier nicht wichtig
   uint8_t scankey; // aktuelle Taste
-  uint8_t portb_idle = (PORTB | B00111000) & ~((1 << SR_CLK) | (1 << SR_LOAD)); // Set SR_CLK and SR_LOAD LOW for idle
-  uint8_t portb_load = portb_idle | (1 << SR_LOAD);
-  uint8_t portb_loadclk = portb_load | (1 << SR_CLK);
-  uint8_t portb_clk = portb_idle | (1 << SR_CLK);
   uint8_t mk_upr, mk_upr_old;
   uint8_t mk_lwr, mk_lwr_old;
-
-  PORTB = portb_load;
-  asm volatile ("nop"); // Setup-Time für CMOS-4014
-  asm volatile ("nop");
-  asm volatile ("nop");
-  PORTB = portb_loadclk;
-  asm volatile ("nop"); // Clock-Dauer für CMOS-4014
-  asm volatile ("nop");
-  asm volatile ("nop");
-  PORTB = portb_idle;   // zurück zu idle
+  _SET_SR_LOAD;
+  _NOP;
+  _NOP;
+  _SET_SR_CLK;
+  _NOP;
+  _NOP;
+  _CLR_SR_CLK;
+  _CLR_SR_LOAD; // Load LOW
   for (scankey = 0; scankey < MANUALKEYS; scankey++) {
     mk_upr = PINB & (1 << SR_UPR); // Make-Kontakt Pedal lesen, active LOW
     // Manual hat nur Make-Kontakt, deshalb keine State Machine
@@ -441,19 +469,18 @@ void ScanManualsSR61() {
         MidiSendNoteOff(MenuValues[m_lower_channel], MIDI_BASE_LWR + scankey); // Lower NoteOff
       }
     }
-    PORTB = portb_clk;
-    asm volatile ("nop"); // Clock-Dauer für CMOS-4014
-    asm volatile ("nop");
-    asm volatile ("nop");
-    PORTB = portb_idle;   // zurück zu idle
+    _SET_SR_CLK;
+    _NOP;
+    _NOP;
+    _CLR_SR_CLK;
   }
 }
 
 // #############################################################################
 
 void configurePorts(uint8_t driverType) {
-  DDRC =  B00000000; // Encoder-Eingänge PC0 und PC1
-  PORTC = B00001100; // Pull-ups für Encoder-Eingänge aktivieren
+  DDRC =  B00000011; // Encoder-Eingänge PC2 und PC3, MPX Data PC0 und MPX-Clk PC1 als Ausgänge
+  PORTC = B00001100; // Pull-ups für Encoder-Eingänge PC2 und PC3 aktivieren
   switch (driverType) {
     case drv_fatar1:
       // FATAR Scan Controller 1 (NEU)
@@ -502,6 +529,76 @@ void configurePorts(uint8_t driverType) {
   }
 }
 
+
+// #############################################################################
+//
+//     #     # ######  #     #      #    #     # #        #####
+//     ##   ## #     #  #   #      # #   ##    # #       #     #
+//     # # # # #     #   # #      #   #  # #   # #       #
+//     #  #  # ######     #      #     # #  #  # #       #  ####
+//     #     # #         # #     ####### #   # # #       #     #
+//     #     # #        #   #    #     # #    ## #       #     #
+//     #     # #       #     #   #     # #     # #######  #####
+//
+// #############################################################################
+
+// MPX Functions for reading analog inputs via MPX and 74HC164 shift register
+
+
+void clockMPX() {
+  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
+  // PORTC = mpx_clk; // Clock auf HIGH, Datenbit wird übernommen
+  _SET_MPX_CLK;
+  _NOP; // kurze Pause für Clock-Dauer
+  _CLR_MPX_CLK;
+  // Am Analogeingang ADC7 liegt jetzt der Wert des nächsten MPX-Potentiometers an
+}
+
+void startMPX() {
+  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
+  // Schiebe eine 1 in das Schieberegister 74HC164
+  _SET_MPX_DATA; // Data PORTC Bit 0 auf HIGH
+  _SET_MPX_CLK; // Clk PORTC Bit 1 auf HIGH
+  _NOP; // kurze Pause für Clock-Dauer
+  _CLR_MPX_CLK;
+  _CLR_MPX_DATA;
+  // Am Analogeingang ADC7 liegt jetzt der Wert des ersten MPX-Potentiometers an
+  AnalogInputActive = 0;
+}
+
+void resetMPX() {
+  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
+  ADMUX = (1<<REFS0)|(1<<ADLAR)|(0x07); //select AVCC as reference and set MUX to pin 7
+  ADCSRA = (1<<ADEN)|(1<<ADPS1)|(1<<ADPS0); // enable ADC and set prescaler to 8
+  ADCSRA |= (1 << ADSC); // Starte erste Wandlung
+  while (ADCSRA & (1 << ADSC)); // warte bis erste Wandlung abgeschlossen
+  for (uint8_t i = 0; i < ANLG_INPUTS; i++) {
+    clockMPX();
+  }
+  startMPX(); // erste 1 schieben, AnalogInputActive = 0
+}
+
+uint8_t getNextMPXvalue() {
+  // read analog input ADC7 and shift next MPX bit, return value 0..255
+  if (AnalogInputActive >= ANLG_INPUTS) {
+    startMPX(); // MPX zurücksetzen, damit der nächste Durchlauf wieder mit dem ersten MPX-Potentiometer beginnt
+    // AnalogInputActive = 0, wird in startMPX() gesetzt
+  }
+  _NOP; // kurze Pause zum Settle des ADC-Eingangs
+  _NOP;
+  // Bei Prescaler 8 und 20 MHz Takt ist die ADC-Wandlung nach etwa 13 ADC-Takten (etwa 5 µs) abgeschlossen
+  _SET_MPX_DATA; // Data PORTC Bit 0 auf HIGH
+  ADCSRA |= (1 << ADSC); // Starte nächste Wandlung
+  while (ADCSRA & (1 << ADSC)); // warte bis Wandlung abgeschlossen
+  _CLR_MPX_DATA;
+  delayMicroseconds(1); // Wartezeit für ADC Settle
+  uint16_t value = (ADCH * 75) / 100; // ADC-Wert lesen und skalieren
+  AnalogInputs[AnalogInputActive] = value; // Wert im Array speichern
+  clockMPX(); // nächsten MPX-Wert vorbereiten
+  AnalogInputActive++;
+  return value; // Rückgabewert 0..255 für MIDI-CC
+}
+
 // #############################################################################
 //
 //     #     # ####### #     # #     #
@@ -527,8 +624,8 @@ void blinkLED(uint8_t times) {
 #ifdef LCD_I2C
 
 void displayMenuValue(uint8_t itemIndex) {
-  int8_t item_value = MenuValues[itemIndex];
   lcd.setCursor(0, 1);
+  int8_t item_value = MenuValues[itemIndex];
   switch (itemIndex) {
     case m_driver_type:
       lcd.print(DriverTypes[item_value]);
@@ -557,10 +654,9 @@ void displayMenuItem(uint8_t itemIndex) {
   displayMenuValue(itemIndex);
 }
 
-void handleMenu() {
-  // Menü-Handling hier
-  int16_t encoderDelta = lcd.getEncoderDelta();
-  if (encoderDelta != 0) {
+void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
+  // Menü-Handling bei Encoder-Änderungen
+  if ((encoderDelta != 0) || forceDisplay) {
     // Encoder hat sich bewegt
     int8_t oldValue = MenuValues[MenuItemActive];
     if (oldValue + encoderDelta < MenuValueMin[MenuItemActive]) {
@@ -580,10 +676,14 @@ void handleMenu() {
         Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
       }
     }
-    if ((MenuItemActive == m_mindyn ) || (MenuItemActive == m_cubicblend)) {
-      CreateDynTable(MenuValues[m_mindyn], MenuValues[m_cubicblend]);
+    if ((MenuItemActive == m_mindyn ) || (MenuItemActive == m_slope)) {
+      CreateDynTable(MenuValues[m_mindyn], MenuValues[m_slope]);
     }
   }
+}
+
+void handleButtons() {
+  // Menü-Handling bei Button-Änderungen
   uint8_t buttons = lcd.getButtons(); // benötigt etwa 130 µs (inkl. I2C Overhead) bei 400 kHz
   if (buttons != 0) {
     displayMenuItem(MenuItemActive);
@@ -630,16 +730,12 @@ void handleMenu() {
 //
 // #############################################################################
 
-volatile uint8_t Timer1Semaphore = 0;
-volatile uint8_t Timer1RoundRobin = 0;
-
-
 void timer1SemaphoreISR() {
   // Timer1 Interrupt Service Routine, setzt Semaphore für Timer-basiertes Ausführen
   // der Scan- und MIDI-Merge-Funktionen im Hauptprogramm
   Timer1Semaphore++;
   Timer1RoundRobin++;
-  Timer1RoundRobin &= 0x07; // nur die unteren 3 Bits behalten
+  Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten
 }
 
 void setup() {
@@ -657,7 +753,7 @@ void setup() {
     MenuValues[i] = eep_val;
   }
   configurePorts(MenuValues[m_driver_type]); // Port Initialisierung je nach Treibertyp
-  CreateDynTable(MenuValues[m_mindyn], MenuValues[m_cubicblend]);
+  CreateDynTable(MenuValues[m_mindyn], MenuValues[m_slope]);
 
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
   if (MenuValues[m_driver_type] >= drv_fatar1) {
@@ -671,9 +767,10 @@ void setup() {
   MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
   MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1
 
-#ifdef LCD_I2C
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
+
+#ifdef LCD_I2C
   Wire.beginTransmission(LCD_I2C_ADDR); // Display I2C-Adresse
   if (Wire.endTransmission(true) == 0) {
     // Display gefunden
@@ -701,6 +798,19 @@ void setup() {
   blinkLED(3);
 #endif
 
+#ifdef PANEL16
+  // just a test for Panel16 library
+  Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
+  if (Wire.endTransmission(true) == 0) {
+    panel16Present = true;
+    panel16.begin();
+    panel16.setLEDstate(1, LED_DIM_BRIGHT); // einzelne LED in lower row
+    panel16.setLEDstate(2, LED_DIM_BRIGHT); // einzelne LED in lower row
+    panel16.setLEDstate(3, LED_DIM_DARK); // einzelne LED in lower row
+    panel16.setLEDstate(13, LED_DIM_DARK); // einzelne LED in upper row
+  }
+#endif
+  resetMPX(); // MPX-SR 74HC164 zurücksetzen
 }
 
 // #############################################################################
@@ -725,12 +835,37 @@ void loop() {
     }
     MidiMerge();    // nicht der Rede wert, falls nichts anliegt
 #ifdef LCD_I2C
-    if (Timer1RoundRobin == 0) {
-      if (lcdPresent) {
-        handleMenu();   // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+    int16_t encoderDelta = lcd.getEncoderDelta();
+    if (lcdPresent) {
+      handleEncoder(encoderDelta, false);
+      if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
+        handleButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
       }
     }
 #endif
+#ifdef PANEL16
+    // Test für Panel16 Button-Abfrage
+    if ((Timer1RoundRobin == 8) && (AnyKeyPressed == 0)) {
+      if (panel16Present) {
+        uint8_t btns = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+        if (btns) {
+          uint8_t bnt_number = panel16.buttonByteToNumber(0, btns);
+          lcd.setCursor(0, 1);
+          lcd.print("Btn: ");
+          lcd.print(bnt_number, DEC);
+          panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
+          panel16.getButtonRowWaitReleased(0);
+          handleEncoder(0, true);
+        };   // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+      }
+    }
+#endif
+    getNextMPXvalue(); // nächstes Poti neu einlesen
+    uint8_t anlg_val = AnalogInputs[0];
+    if (anlg_val != AnalogInputsOld[0]) { // Aktuelle Werte der analogen Eingänge
+      MidiSendController(MenuValues[m_upper_channel], 7, anlg_val); // Volume Upper
+      AnalogInputsOld[0] = anlg_val;
+    }
   }
 }
 

@@ -16,8 +16,6 @@
 #ifndef MenuPanel_h
 #define MenuPanel_h
 
-#define PCA9555
-
 #include <inttypes.h>
 #include "Print.h"
 #include <Wire.h>
@@ -115,6 +113,7 @@ public:
   void init();
   uint8_t getButtons();
   uint8_t getButtonsWaitReleased(); // as above, wait for release of all buttons
+  int16_t getEncoderDelta();
 
   //compatibility API function aliases
   void blink_on();						// alias for blink()
@@ -123,7 +122,6 @@ public:
   void cursor_off();      					// alias for noCursor()
   void load_custom_character(uint8_t char_num, uint8_t *rows);	// alias for createChar()
   void printstr(const char[]);
-  int16_t getEncoderDelta();
 
 private:
   void init_priv();
