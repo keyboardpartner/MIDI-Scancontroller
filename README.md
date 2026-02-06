@@ -4,7 +4,7 @@
 
 ### ATmega328 Project for PlatformIO or Arduino IDE
 
-Fast AVR ATmega328 based scan controller with velocity dynamic scanning for Fatar and SR4014 keybeds. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves min. 2 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes approx. 280 µs plus 80 µs for 25-note bass pedal.
+Fast AVR ATmega328 based scan controller with velocity dynamic scanning for Fatar keybeds or non-dynamic scanning of single-contact keybeds with MOS 4014 shift registers. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves min. 2 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes approx. 280 µs plus 80 µs for 25-note bass pedal.
 
 Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface boards or DIY equivalents, see schematics in /docs.
 
