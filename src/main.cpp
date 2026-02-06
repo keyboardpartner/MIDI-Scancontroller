@@ -95,13 +95,13 @@
 #define MIDI_DYNSLOPE 12
 #define MIDI_MAXDYNADJ 5
 
-uint8_t UpperKeyState[128]; // Zustand der Tasten
-uint8_t LowerKeyState[128]; // Zustand der Tasten
+uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
+uint8_t LowerKeyState[KEYS]; // Zustand der Tasten
 uint8_t PedalContactState[PEDALKEYS]; // Zustand der Pedaltasten
 uint8_t AnyKeyPressed = false;
 
-uint8_t UpperKeyTimer[128]; // Timer für jede Taste
-uint8_t LowerKeyTimer[128]; // Timer für jede Taste
+uint8_t UpperKeyTimer[KEYS]; // Timer für jede Taste
+uint8_t LowerKeyTimer[KEYS]; // Timer für jede Taste
 
 
 volatile uint8_t Timer1Semaphore = 0;
@@ -109,7 +109,7 @@ volatile uint8_t Timer1RoundRobin = 0;
 
 #define LCD_I2C
 #define ANLG_MPX
-#define PANEL16
+//#define PANEL16
 
 #ifdef LCD_I2C
   // Für LCD mit I2C-Interface
@@ -137,12 +137,10 @@ bool panel16Present = false;
 
 // Menu System Variables
 
-#define MENU_ITEMCOUNT 10
-#define MENU_DRIVERCOUNT 4
-
-enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom};
-
-
+#define MENU_ITEMCOUNT 14
+enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, 
+      m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_maxdynadj, m_slope,
+      m_CC1, m_CC2, m_CC3, m_CC4};
 const lcdTextType MenuItems[MENU_ITEMCOUNT] PROGMEM = { 
   { "Upper Channel" }, 
   { "Lower Channel" }, 
@@ -152,10 +150,16 @@ const lcdTextType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   { "Lower Base" }, 
   { "Pedal Base" }, 
   { "Velocity Min" }, 
-  { "Vel. Max Adj." }, 
-  { "Velocity Slope" }, 
+  { "Velocity MaxAdj" }, // maximale String-Länge 15 Zeichen
+  { "Velocity Slope" },
+  { "CC1 Number" }, 
+  { "CC2 Number" }, 
+  { "CC3 Number" }, 
+  { "CC4 Number" }, 
 };
 
+#define MENU_DRIVERCOUNT 4
+enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom};
 const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = { 
   { "Scan16/61" }, 
   { "FatarScan1-61" }, 
@@ -163,14 +167,10 @@ const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = {
   { "Custom" },
 };
 
-enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_maxdynadj, m_slope};
 uint8_t MenuItemActive = m_upper_channel;
-
-
-
-const int8_t MenuValueMin[] = {1, 1, 1, 0, 12, 12, 12, 0, 0, 0};
-const int8_t MenuValueMax[] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 60, 60, 60, 40, 40, 20};
-const int8_t MenuValueDefaults[] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_MAXDYNADJ, MIDI_DYNSLOPE};
+const int8_t MenuValueMin[] = {1, 1, 1, 0, 12, 12, 12, 0, 0, 0, 0, 0, 0, 0};
+const int8_t MenuValueMax[] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 60, 60, 60, 40, 40, 20, 127, 127, 127, 127};
+const int8_t MenuValueDefaults[] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_MAXDYNADJ, MIDI_DYNSLOPE, 7, 10, 11, 91};
 const String Msg[] = {"FCK TRMP", "FCK AFD"};
 int8_t MenuValues[MENU_ITEMCOUNT];
 
@@ -194,14 +194,13 @@ int8_t MenuValues[MENU_ITEMCOUNT];
 #ifdef ANLG_MPX
 
 // Pro MPX-Eingang werden 5 Byte benötigt: integrierter Wert, alter Wert, Timer für Aktivität, CC-Nummer, CC-Kanal
-uint8_t mpxCCnumbers[ANLG_INPUTS] = {7, 10, 11, 91}; // MIDI CC-Nummern für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
 uint8_t mpxCCchannels[ANLG_INPUTS] = {1, 1, 1, 1};   // MIDI CC-Kanäle für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
 
 // Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge, hier können die MIDI-CC-Werte gesendet werden
 // Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
 void onMPXChange(uint8_t inputIndex, uint8_t value){
   if (inputIndex < ANLG_INPUTS) {
-    MidiSendController(mpxCCchannels[inputIndex], mpxCCnumbers[inputIndex], value); // Volume Upper
+    MidiSendController(mpxCCchannels[inputIndex], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
   }
 }
 
@@ -274,7 +273,6 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
 }
 
 // #############################################################################
-
 
 void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
   switch (LowerKeyState[scankey]) {
@@ -534,7 +532,7 @@ void configurePorts(uint8_t driverType) {
       DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
       PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
       // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
-      for (uint8_t i = 0; i < MANUALKEYS; i++) {
+      for (uint8_t i = 0; i < KEYS; i++) {
         UpperKeyState[i] = t_idle;
         LowerKeyState[i] = t_idle;
       }
@@ -546,7 +544,7 @@ void configurePorts(uint8_t driverType) {
       DDRD =  B00110110; // Keine Pullups an Eingängen PIND6 und PIND7!
       PORTD = B00000110; // Pull-ups für Eingänge aktivieren, LED PD2 off (high!)
       // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
-      for (uint8_t i = 0; i < MANUALKEYS; i++) {
+      for (uint8_t i = 0; i < KEYS; i++) {
         UpperKeyState[i] = t_idle;
         LowerKeyState[i] = t_idle;
       }
@@ -564,7 +562,7 @@ void configurePorts(uint8_t driverType) {
         LowerKeyState[i] = (1 << SR_LWR);
       }
   }
-  for (uint8_t i = 0; i < MANUALKEYS; i++) {
+  for (uint8_t i = 0; i < KEYS; i++) {
     UpperKeyTimer[i] = 255;
     LowerKeyTimer[i] = 255;
   }
@@ -839,7 +837,9 @@ void loop() {
           lcd.print(bnt_number, DEC);
           panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
           panel16.getButtonRowWaitReleased(0);
-          handleEncoder(0, true);
+#ifdef LCD_I2C
+          if (lcdPresent) displayMenuItem(MenuItemActive);
+#endif
         }; 
       }      
       if (Timer1RoundRobin == 12) {
@@ -851,7 +851,9 @@ void loop() {
           lcd.print(bnt_number, DEC);
           panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
           panel16.getButtonRowWaitReleased(1);
-          handleEncoder(0, true);
+#ifdef LCD_I2C
+          if (lcdPresent) displayMenuItem(MenuItemActive);
+#endif
         }; 
       }
     }

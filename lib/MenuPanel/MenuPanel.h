@@ -81,7 +81,8 @@
 #define LCD_ARW_UD char(4)
 #define LCD_ARW_UD_GREY char(5)
 
-// Dieser Hack wird benötigt, um die Menü-Items im Flash-Speicher zu halten, da das RAM beim ATmega328P knapp ist:
+// Dieser Hack wird benötigt, um die Menü-Items im Flash-Speicher zu halten, da das RAM beim ATmega328P knapp ist.
+// Menü-Items sind maximal 16 Zeichen lang, damit sie genau in eine LCD-Zeile passen, plus Nullterminator
 typedef struct {
   char lcdText [16];
 } lcdTextType;
@@ -94,7 +95,6 @@ public:
   const uint8_t arrowLeftGrey[8] = {0x02, 0x04, 0x0A, 0x14, 0x0A, 0x04, 0x02, 0x00};  // "<" Cursor grey
   const uint8_t arrowUpDown[8] = {0x04, 0x0E, 0x1F, 0x00, 0x1F, 0x0E, 0x04, 0x00}; // Updown (white}
   const uint8_t arrowUpDownGrey[8] = {0x04, 0x0A, 0x15, 0x00, 0x15, 0x0A, 0x04, 0x00}; // Updown (grey}
-
 
   MenuPanel(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
   void begin(uint8_t cols, uint8_t rows); // , uint8_t charsize = LCD_5x8DOTS );
