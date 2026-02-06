@@ -29,7 +29,7 @@
 #define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
 #define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
 
-#define _NOP_MPX asm volatile ("nop")
+#define _NOP_DLY asm volatile ("nop")
 
 #define MPX_ACTIVE_TIMEOUT 10 // Anzahl der kompletten Durchläufe, die ein geänderter Potentiometerwert als aktiv gilt, höher = länger aktiv
 #define MPX_INTEGRATOR_FACTOR 4 // Faktor für die Integration der MPX-Werte, höher = stärker geglättet, aber auch träger
@@ -73,11 +73,11 @@ private:
   uint8_t _analogInputSelect = 0; // derzeit ausgewählter _analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
 };
 
-MPXpots::MPXpots(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR) {
+MPXpots::MPXpots(uint8_t mpx_input_count, uint8_t active_timeout, int16_t integrator_factor) {
   init(mpx_input_count, active_timeout, integrator_factor);
 }
 
-void MPXpots::init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR) {
+void MPXpots::init(uint8_t mpx_input_count, uint8_t active_timeout, int16_t integrator_factor) {
   _changeAction = dummyAction; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
   _analogMPXinputCount = mpx_input_count;
   _analogMPXactiveTimeout = active_timeout;
@@ -95,7 +95,7 @@ void MPXpots::clockMPX() {
   // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
   // PORTC = mpx_clk; // Clock auf HIGH, Datenbit wird übernommen
   _SET_MPX_CLK;
-  _NOP_MPX; // kurze Pause für Clock-Dauer
+  _NOP_DLY; // kurze Pause für Clock-Dauer
   _CLR_MPX_CLK;
   // Am _analogeingang ADC7 liegt jetzt der Wert des nächsten MPX-Potentiometers an
 }
@@ -105,11 +105,11 @@ void MPXpots::startMPX() {
   // Schiebe eine 1 in das Schieberegister 74HC164
   _SET_MPX_DATA; // Data PORTC Bit 0 auf HIGH
   _SET_MPX_CLK; // Clk PORTC Bit 1 auf HIGH
-  _NOP_MPX; // kurze Pause für Clock-Dauer
+  _NOP_DLY; // kurze Pause für Clock-Dauer
   _CLR_MPX_CLK;
   _CLR_MPX_DATA;
-  _NOP_MPX; // kurze Pause zum Settle des ADC-Eingangs
-  _NOP_MPX;
+  _NOP_DLY; // kurze Pause zum Settle des ADC-Eingangs
+  _NOP_DLY;
   // Am _analogeingang ADC7 liegt jetzt der Wert des ersten MPX-Potentiometers an
 }
 

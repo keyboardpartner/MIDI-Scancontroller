@@ -71,7 +71,7 @@
 #define _SET_SR_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
 #define _CLR_SR_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
 
-#define _NOP asm volatile ("nop")
+#define _NOP_DLY asm volatile ("nop")
 
 #define KEYS_PER_GROUP 8
 #define KEYS (KEYS_PER_GROUP * 8) // 8 Treibergruppen à 8 Tasten = 64 Tasten pro Manual
@@ -340,11 +340,11 @@ void ScanPedal() {
   // Pedal mit BASS25 scannen, Zeit für 25 Pedaltasten etwa 25 us bei 20 MHz Takt
   uint8_t scankey, mk_ped, mk_old; // aktuelle Taste
   _SET_SR_LOAD;
-  _NOP;
-  _NOP;
+  _NOP_DLY;
+  _NOP_DLY;
   _SET_SR_CLK;
-  _NOP;
-  _NOP;
+  _NOP_DLY;
+  _NOP_DLY;
   _CLR_SR_CLK;
   _CLR_SR_LOAD; // Load LOW
   for (scankey = 0; scankey < PEDALKEYS; scankey++) {
@@ -433,8 +433,8 @@ void ScanManualsFatar2() {
   // Reset des 4024 Sense Counters
   _SET_FT_TDRV_RST;
   _SET_FT_SENSE_RST;
-  _NOP;
-  _NOP;
+  _NOP_DLY;
+  _NOP_DLY;
   _CLR_FT_TDRV_RST;
   _CLR_FT_SENSE_RST;
   for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
@@ -458,8 +458,8 @@ void ScanManualsFatar2() {
     }
     // Letzte Taste in der Sense-Gruppe, danach T-Drive inkrementieren
     _SET_FT_TDRV_INC;  // FT_CLK auf HIGH
-    _NOP;
-    _NOP;
+    _NOP_DLY;
+    _NOP_DLY;
     _CLR_FT_TDRV_INC; // FT_CLK auf LOW
     scankey++;
   }
@@ -474,11 +474,11 @@ void ScanManualsSR61() {
   uint8_t mk_upr, mk_upr_old;
   uint8_t mk_lwr, mk_lwr_old;
   _SET_SR_LOAD;
-  _NOP;
-  _NOP;
+  _NOP_DLY;
+  _NOP_DLY;
   _SET_SR_CLK;
-  _NOP;
-  _NOP;
+  _NOP_DLY;
+  _NOP_DLY;
   _CLR_SR_CLK;
   _CLR_SR_LOAD; // Load LOW
   for (scankey = 0; scankey < MANUALKEYS; scankey++) {
@@ -511,8 +511,8 @@ void ScanManualsSR61() {
       }
     }
     _SET_SR_CLK;
-    _NOP;
-    _NOP;
+    _NOP_DLY;
+    _NOP_DLY;
     _CLR_SR_CLK;
   }
 }
