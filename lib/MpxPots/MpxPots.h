@@ -52,6 +52,11 @@ public:
   actionCallback _changeAction; // Analog Changed action callback
   void setChangeAction(actionCallback action) { _changeAction = action; }
 
+  uint8_t getAnalogValue(uint8_t index) {  
+    // aktueller Wert eines analogen Eingangs, 0..127, erst nach einigen handleMPX() gültig, da dort die Werte gelesen und verarbeitet werden
+    return (index < ANLG_INPUTS) ? _analogInputs[index] : 0; 
+  }
+
 private:
   void clockMPX();
   void startMPX();
@@ -59,7 +64,8 @@ private:
   // uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge, hier nicht benötigt, da direkt in handleMPX gelesen und verarbeitet wird
   uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der _analogen Eingänge
   uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge
-  uint8_t _analogInputTimer[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
+  uint8_t _analogInputTimers[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
+  uint8_t _analogInputs[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
  
   uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
   uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
@@ -79,7 +85,7 @@ void MPXpots::init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout
   for (uint8_t i = 0; i < ANLG_INPUTS; i++) {
     _analogInputsIntegrated[i] = 0;
     _analogInputsOld[i] = 0;
-    _analogInputTimer[i] = 0;
+    _analogInputTimers[i] = 0;
   }
   resetMPX();
  }
@@ -129,18 +135,18 @@ void MPXpots::handleMPX() {
   ADCSRA |= (1 << ADSC); // Starte nächste Wandlung
   // Wandlungszeit nutzen
   int16_t oldValue = (int16_t)_analogInputsIntegrated[_analogInputSelect] * (_analogMPXintegrator - 1); // Integration mit Faktor 4, alter Wert wird mit 3 gewichtet;
-  uint8_t timerValue = _analogInputTimer[_analogInputSelect];
+  uint8_t timerValue = _analogInputTimers[_analogInputSelect];
   bool isActive = false;
   if (timerValue > 0) {
     timerValue--;
-    _analogInputTimer[_analogInputSelect] = timerValue;
+    _analogInputTimers[_analogInputSelect] = timerValue;
     isActive = true;
     digitalWrite(LED_PIN, LOW);  // Timer läuft, Potentiometer aktiv
   } else {
     // Prüfe, ob noch Potis aktiv sind, wenn nicht, LED ausschalten
     bool anyActive = false;
     for (uint8_t i = 0; i < _analogMPXinputCount; i++) {
-      if (_analogInputTimer[i] > 0) anyActive = true;
+      if (_analogInputTimers[i] > 0) anyActive = true;
     }
     if (!anyActive) {
       digitalWrite(LED_PIN, HIGH);  // Timer abgelaufen, kein Potentiometer aktiv
@@ -157,7 +163,7 @@ void MPXpots::handleMPX() {
   oldValue = _analogInputsOld[_analogInputSelect];
   if (abs(newValue - oldValue) > 1)  {
     isActive = true; // Wert hat sich geändert, Potentiometer ist aktiv
-    _analogInputTimer[_analogInputSelect] = _analogMPXactiveTimeout;
+    _analogInputTimers[_analogInputSelect] = _analogMPXactiveTimeout;
   }
   if (isActive) { // Hysterese von 2 (0..255) für _analoge Eingänge, falls nicht aktiv
     _analogInputsOld[_analogInputSelect] = (uint8_t)newValue;
@@ -165,7 +171,7 @@ void MPXpots::handleMPX() {
     // und 3,3V Versorgungsspannung der Potis den vollen MIDI-Wertebereich 0..127 abzudecken
     newValue = (newValue * 77) / 100;
     if (newValue > 127) newValue = 127; // Überlauf verhindern
-    // _analogInputs[_analogInputSelect] = (uint8_t)newValue; // integrierten Wert in aktuelles Array schreiben
+    _analogInputs[_analogInputSelect] = (uint8_t)newValue; // integrierten Wert in aktuelles Array schreiben
     // Change Action Callback aufrufen, damit Nutzer eigene Aktionen bei Änderungen definieren kann, 
     // z.B. Anzeige auf LCD aktualisieren oder MIDI-CC senden
     _changeAction(_analogInputSelect, (uint8_t)newValue);

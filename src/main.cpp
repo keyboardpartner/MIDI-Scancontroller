@@ -13,7 +13,8 @@
 // MIDI Controller for FATAR keybeds, C. Meyer 1/2026
 // Banner Logos from
 // https://patorjk.com/software/taag/#p=display&f=Banner&t=MAIN&x=cppComment&v=4&h=2&w=80&we=false
-// 20 MHz Bootloaders: https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
+// 20 MHz Bootloaders: 
+// https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -193,14 +194,11 @@ int8_t MenuValues[MENU_ITEMCOUNT];
 
 #ifdef ANLG_MPX
 
-// Pro MPX-Eingang werden 5 Byte benötigt: integrierter Wert, alter Wert, Timer für Aktivität, CC-Nummer, CC-Kanal
-uint8_t mpxCCchannels[ANLG_INPUTS] = {1, 1, 1, 1};   // MIDI CC-Kanäle für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
-
 // Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge, hier können die MIDI-CC-Werte gesendet werden
 // Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
 void onMPXChange(uint8_t inputIndex, uint8_t value){
   if (inputIndex < ANLG_INPUTS) {
-    MidiSendController(mpxCCchannels[inputIndex], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
+    MidiSendController(MenuValues[m_upper_channel], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
   }
 }
 
