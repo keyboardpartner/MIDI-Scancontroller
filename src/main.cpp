@@ -19,8 +19,6 @@
 #include <EEPROM.h>
 #include <TimerOne.h>
 #include "midi_io.h"
-#include "MenuPanel.h"
-#include "Panel16.h"
 
 #define LED_PIN 2 // Pin für LED
 #define EEPROM_MENUDEFAULTS 16 // Startadresse im EEPROM für gespeicherte Werte
@@ -72,17 +70,7 @@
 #define _SET_SR_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
 #define _CLR_SR_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
 
-
-// MPX Port Definitions and Fast Manipulation Macros
-#define MPX_DATA PORTC0
-#define MPX_CLK  PORTC1
-// Fast port bit manipulation macros
-#define _NOP  asm volatile ("nop")
-#define _SET_MPX_DATA asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
-#define _CLR_MPX_DATA asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
-#define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
-#define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
-
+#define _NOP asm volatile ("nop")
 
 #define KEYS_PER_GROUP 8
 #define KEYS (KEYS_PER_GROUP * 8) // 8 Treibergruppen à 8 Tasten = 64 Tasten pro Manual
@@ -115,14 +103,13 @@ uint8_t AnyKeyPressed = false;
 uint8_t UpperKeyTimer[128]; // Timer für jede Taste
 uint8_t LowerKeyTimer[128]; // Timer für jede Taste
 
-uint8_t AnalogInputs[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
-uint8_t AnalogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
-uint8_t AnalogInputActive = 0;
 
 volatile uint8_t Timer1Semaphore = 0;
 volatile uint8_t Timer1RoundRobin = 0;
 
 #define LCD_I2C
+#define ANLG_MPX
+#define PANEL16
 
 #ifdef LCD_I2C
   // Für LCD mit I2C-Interface
@@ -132,14 +119,21 @@ volatile uint8_t Timer1RoundRobin = 0;
 #endif
 bool lcdPresent = false;
 
-#define PANEL16
 #ifdef PANEL16
   // Für LCD mit I2C-Interface
-  #include "MenuPanel.h"
+  #include "Panel16.h"
   #define PANEL16_I2C_ADDR 0x62
   Panel16 panel16(PANEL16_I2C_ADDR);
 #endif
 bool panel16Present = false;
+
+#ifdef ANLG_MPX
+  // Für MPX-gestützte analoge Eingänge
+  #include "MpxPots.h"
+  MPXpots mpxPots(ANLG_INPUTS, MPX_ACTIVE_TIMEOUT, MPX_INTEGRATOR_FACTOR);
+#endif
+
+
 
 // Menu System Variables
 
@@ -532,75 +526,6 @@ void configurePorts(uint8_t driverType) {
 
 // #############################################################################
 //
-//     #     # ######  #     #      #    #     # #        #####
-//     ##   ## #     #  #   #      # #   ##    # #       #     #
-//     # # # # #     #   # #      #   #  # #   # #       #
-//     #  #  # ######     #      #     # #  #  # #       #  ####
-//     #     # #         # #     ####### #   # # #       #     #
-//     #     # #        #   #    #     # #    ## #       #     #
-//     #     # #       #     #   #     # #     # #######  #####
-//
-// #############################################################################
-
-// MPX Functions for reading analog inputs via MPX and 74HC164 shift register
-
-
-void clockMPX() {
-  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
-  // PORTC = mpx_clk; // Clock auf HIGH, Datenbit wird übernommen
-  _SET_MPX_CLK;
-  _NOP; // kurze Pause für Clock-Dauer
-  _CLR_MPX_CLK;
-  // Am Analogeingang ADC7 liegt jetzt der Wert des nächsten MPX-Potentiometers an
-}
-
-void startMPX() {
-  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
-  // Schiebe eine 1 in das Schieberegister 74HC164
-  _SET_MPX_DATA; // Data PORTC Bit 0 auf HIGH
-  _SET_MPX_CLK; // Clk PORTC Bit 1 auf HIGH
-  _NOP; // kurze Pause für Clock-Dauer
-  _CLR_MPX_CLK;
-  _CLR_MPX_DATA;
-  // Am Analogeingang ADC7 liegt jetzt der Wert des ersten MPX-Potentiometers an
-  AnalogInputActive = 0;
-}
-
-void resetMPX() {
-  // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
-  ADMUX = (1<<REFS0)|(1<<ADLAR)|(0x07); //select AVCC as reference and set MUX to pin 7
-  ADCSRA = (1<<ADEN)|(1<<ADPS1)|(1<<ADPS0); // enable ADC and set prescaler to 8
-  ADCSRA |= (1 << ADSC); // Starte erste Wandlung
-  while (ADCSRA & (1 << ADSC)); // warte bis erste Wandlung abgeschlossen
-  for (uint8_t i = 0; i < ANLG_INPUTS; i++) {
-    clockMPX();
-  }
-  startMPX(); // erste 1 schieben, AnalogInputActive = 0
-}
-
-uint8_t getNextMPXvalue() {
-  // read analog input ADC7 and shift next MPX bit, return value 0..255
-  if (AnalogInputActive >= ANLG_INPUTS) {
-    startMPX(); // MPX zurücksetzen, damit der nächste Durchlauf wieder mit dem ersten MPX-Potentiometer beginnt
-    // AnalogInputActive = 0, wird in startMPX() gesetzt
-  }
-  _NOP; // kurze Pause zum Settle des ADC-Eingangs
-  _NOP;
-  // Bei Prescaler 8 und 20 MHz Takt ist die ADC-Wandlung nach etwa 13 ADC-Takten (etwa 5 µs) abgeschlossen
-  _SET_MPX_DATA; // Data PORTC Bit 0 auf HIGH
-  ADCSRA |= (1 << ADSC); // Starte nächste Wandlung
-  while (ADCSRA & (1 << ADSC)); // warte bis Wandlung abgeschlossen
-  _CLR_MPX_DATA;
-  delayMicroseconds(1); // Wartezeit für ADC Settle
-  uint16_t value = (ADCH * 75) / 100; // ADC-Wert lesen und skalieren
-  AnalogInputs[AnalogInputActive] = value; // Wert im Array speichern
-  clockMPX(); // nächsten MPX-Wert vorbereiten
-  AnalogInputActive++;
-  return value; // Rückgabewert 0..255 für MIDI-CC
-}
-
-// #############################################################################
-//
 //     #     # ####### #     # #     #
 //     ##   ## #       ##    # #     #
 //     # # # # #       # #   # #     #
@@ -622,6 +547,8 @@ void blinkLED(uint8_t times) {
 }
 
 #ifdef LCD_I2C
+
+// Menu-Handling für LCD mit I2C-Interface
 
 void displayMenuValue(uint8_t itemIndex) {
   lcd.setCursor(0, 1);
@@ -655,7 +582,8 @@ void displayMenuItem(uint8_t itemIndex) {
 }
 
 void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
-  // Menü-Handling bei Encoder-Änderungen
+  // Menü-Handling bei Encoder-Änderungen: Wert ändern, 
+  // bei Änderung des Treibertyps Ports neu konfigurieren, Dynamiktabelle neu erstellen
   if ((encoderDelta != 0) || forceDisplay) {
     // Encoder hat sich bewegt
     int8_t oldValue = MenuValues[MenuItemActive];
@@ -683,7 +611,7 @@ void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
 }
 
 void handleButtons() {
-  // Menü-Handling bei Button-Änderungen
+  // Menü-Handling bei Button-Änderungen: Menupunkt wechseln oder Wert in EEPROM speichern
   uint8_t buttons = lcd.getButtons(); // benötigt etwa 130 µs (inkl. I2C Overhead) bei 400 kHz
   if (buttons != 0) {
     displayMenuItem(MenuItemActive);
@@ -810,7 +738,9 @@ void setup() {
     panel16.setLEDstate(13, LED_DIM_DARK); // einzelne LED in upper row
   }
 #endif
-  resetMPX(); // MPX-SR 74HC164 zurücksetzen
+#ifdef ANLG_MPX
+  mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
+#endif
 }
 
 // #############################################################################
@@ -835,9 +765,8 @@ void loop() {
     }
     MidiMerge();    // nicht der Rede wert, falls nichts anliegt
 #ifdef LCD_I2C
-    int16_t encoderDelta = lcd.getEncoderDelta();
     if (lcdPresent) {
-      handleEncoder(encoderDelta, false);
+      handleEncoder(lcd.getEncoderDelta(), false);
       if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
         handleButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
       }
@@ -860,12 +789,11 @@ void loop() {
       }
     }
 #endif
-    getNextMPXvalue(); // nächstes Poti neu einlesen
-    uint8_t anlg_val = AnalogInputs[0];
-    if (anlg_val != AnalogInputsOld[0]) { // Aktuelle Werte der analogen Eingänge
-      MidiSendController(MenuValues[m_upper_channel], 7, anlg_val); // Volume Upper
-      AnalogInputsOld[0] = anlg_val;
-    }
+#ifdef ANLG_MPX
+   if (Timer1RoundRobin == 4) {
+     mpxPots.handleMPX();
+   }
+#endif
   }
 }
 

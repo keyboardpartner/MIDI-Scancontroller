@@ -16,8 +16,6 @@
 #ifndef Panel16_h
 #define Panel16_h
 
-#define PCA9555
-
 #include <inttypes.h>
 #include "Print.h"
 #include <Wire.h>
@@ -34,8 +32,6 @@ public:
 
   Panel16(uint8_t panel_Addr);
   void begin();
-
-
   void init();
   void setLEDdim(uint8_t dimlevel_bright, uint8_t dimlevel_dark);
   void setLEDsUpperByte(uint8_t row, uint8_t ledbyte);

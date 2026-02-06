@@ -11,8 +11,10 @@
 //
 // #############################################################################
 
-#include <Arduino.h>
+#ifndef MIDI_IO_H
+#define MIDI_IO_H
 
+#include <Arduino.h>
 
 uint8_t TimeToDyn[256]; // Lookup-Tabelle Zeitwert -> Dynamikwert
 
@@ -54,7 +56,7 @@ uint8_t LastRunningStatusSent = 0xFF; // ungültiger Wert zum Initialisieren
 uint8_t LastRunningStatusReceived = 0xFF; // ungültiger Wert zum Initialisieren
 
 
-bool SerialReadTimeout(uint8_t &data, unsigned long timeout_ms) {
+bool  MidiReadByteTimeout(uint8_t &data, unsigned long timeout_ms) {
   unsigned long startTime = millis();
   while (Serial.available() == 0) {
     if (millis() - startTime >= timeout_ms)
@@ -64,13 +66,13 @@ bool SerialReadTimeout(uint8_t &data, unsigned long timeout_ms) {
   return true; // Daten gelesen, erfolgreich
 }
 
-void MIDIdiscardSysEx() {
+void MidiDiscardSysEx() {
   uint8_t midi_in;
   bool midi_timeout = false;
   do {
     midi_in = 0xFF;
     // midi_timeout = !SerInp_TO1(midi_in, 25);
-    midi_timeout = !SerialReadTimeout(midi_in, 25);
+    midi_timeout = ! MidiReadByteTimeout(midi_in, 25);
   } while ((midi_in != 0xF7) && !midi_timeout); // SysEx beendet oder Timeout
 }
 
@@ -83,13 +85,13 @@ bool MidiMerge() {
     do {
       // Abwarten, bis eine eingehende MIDI-Übertragung vollständig ist.
       // Danach können wir selbst senden, ggf. auch ActiveSensing
-      midi_timeout = !SerialReadTimeout(midi_in, 50);
+      midi_timeout = ! MidiReadByteTimeout(midi_in, 50);
       if (midi_in >= 0x80) {
         LastRunningStatusReceived = midi_in; // neuer Running Status, Default
         MidiDataCounter = 0;
         switch (midi_in) {
           case 0xF0: // System Exclusive ausfiltern
-            MIDIdiscardSysEx();
+            MidiDiscardSysEx();
             MdatPending = 0;
             databytes_handled = true;
             LastRunningStatusSent = 0; // Ungültig
@@ -213,3 +215,4 @@ void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
   Serial.write(value);   // Dynamik
 }
 
+#endif
