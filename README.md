@@ -15,13 +15,13 @@ New approach for velocity table:
 
 ```cpp
 void CreateDynTable(uint8_t mindyn, uint8_t slope) {
-  // Create Lookup table timer value -> MIDI dynamic
+  // Create lookup table, converts key timer value -> MIDI dynamic
   // Table index: key velocity timer 0..255 (255 = extremely fast key press)
   // mindyn: minimal MIDI dynamic value, 1..40
   // slope: 1 = nearly linear, 20 = strong 1/t chracteristic
   if (slope < 1) slope = 1;
   float inv_slope = 1.0f / (float)slope;
-  for (uint16_t t = 0; tMenuValues <= 255; t++) {
+  for (uint16_t t = 0; t <= 255; t++) {
     float norm = (float)t / 255.0f;  // normalisierter Zeitwert 0..1
     norm = (inv_slope * norm) / ((1 + inv_slope) - norm);
     norm *= (float)(127 - mindyn);
