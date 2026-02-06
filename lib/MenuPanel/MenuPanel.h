@@ -81,14 +81,20 @@
 #define LCD_ARW_UD char(4)
 #define LCD_ARW_UD_GREY char(5)
 
+// Dieser Hack wird benötigt, um die Menü-Items im Flash-Speicher zu halten, da das RAM beim ATmega328P knapp ist:
+typedef struct {
+  char lcdText [16];
+} lcdTextType;
+
 class MenuPanel : public Print {
 public:
-  const uint8_t arrowUp[8] = {0x04,0x0E,0x15,0x04,0x04,0x04,0x04,0x00};
+  const uint8_t arrowUp[8] = {0x04, 0x0E, 0x15, 0x04, 0x04, 0x04, 0x04, 0x00};
   const uint8_t arrowDown[8] = {0x04,0x04,0x04,0x04,0x15,0x0E,0x04,0x00};
   const uint8_t arrowLeft[8] = {0x02, 0x06, 0x0E, 0x1E, 0x0E, 0x06, 0x02, 0x00}; // "<" Cursor filled (white}
   const uint8_t arrowLeftGrey[8] = {0x02, 0x04, 0x0A, 0x14, 0x0A, 0x04, 0x02, 0x00};  // "<" Cursor grey
   const uint8_t arrowUpDown[8] = {0x04, 0x0E, 0x1F, 0x00, 0x1F, 0x0E, 0x04, 0x00}; // Updown (white}
   const uint8_t arrowUpDownGrey[8] = {0x04, 0x0A, 0x15, 0x00, 0x15, 0x0A, 0x04, 0x00}; // Updown (grey}
+
 
   MenuPanel(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
   void begin(uint8_t cols, uint8_t rows); // , uint8_t charsize = LCD_5x8DOTS );
@@ -122,6 +128,13 @@ public:
   void cursor_off();      					// alias for noCursor()
   void load_custom_character(uint8_t char_num, uint8_t *rows);	// alias for createChar()
   void printstr(const char[]);
+
+  void printProgmem(const lcdTextType* progmem_str) {
+    // Kopiere MenuItem aus PROGMEM ins RAM, da lcd.print() nicht direkt aus PROGMEM lesen kann
+    lcdTextType oneItem;
+    memcpy_P (&oneItem, progmem_str, sizeof oneItem);
+    print(oneItem.lcdText);
+  }
 
 private:
   void init_priv();

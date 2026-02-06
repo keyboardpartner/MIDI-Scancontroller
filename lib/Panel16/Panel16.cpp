@@ -22,12 +22,11 @@ Panel16::Panel16(uint8_t panel_Addr)
   _Addr = panel_Addr;
 }
 
-void Panel16::init(){
+void Panel16::init() {
 	init_priv();
 }
 
-void Panel16::init_priv()
-{
+void Panel16::init_priv() {
 	begin();
 }
 
@@ -122,7 +121,7 @@ void Panel16::toggleLEDstate(uint8_t led, uint8_t ledstate_if_on) {
   // ledstate %00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
   // set led 0..15 to ledstate
   uint8_t row = led / 8;
-  uint8_t currentState = _LEDsOnOff[row] & (1 << led);
+  uint16_t currentState = _LEDsOnOff[row] & (1 << led);
   if (ledstate_if_on == 0) {
     // nur ausschalten
     setLEDstate(led, LED_OFF);

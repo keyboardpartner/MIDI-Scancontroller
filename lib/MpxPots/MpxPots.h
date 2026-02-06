@@ -34,31 +34,33 @@
 #define MPX_ACTIVE_TIMEOUT 10 // Anzahl der kompletten Durchläufe, die ein geänderter Potentiometerwert als aktiv gilt, höher = länger aktiv
 #define MPX_INTEGRATOR_FACTOR 4 // Faktor für die Integration der MPX-Werte, höher = stärker geglättet, aber auch träger
 
-#ifndef ANLG_INPUTS
-  #define ANLG_INPUTS 4
-#endif
-#define ANLG_INPUTS_MAX 16
+
+typedef void (*actionCallback)(uint8_t inputIndex, uint8_t value);
+static void dummyAction(uint8_t inputIndex, uint8_t value) { }; // In case user callback is not defined!
+
+// Pro MPX-Eingang werden 5 Byte benötigt: integrierter Wert, alter Wert, Timer für Aktivität, CC-Nummer, CC-Kanal
+// RAM kann bei ATmega328P knapp sein, daher hier die Anzahl der MPX-Eingänge auf 16 begrenzt
 
 class MPXpots {
+
 public:
   MPXpots(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR);
   void init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR);
   void handleMPX(); // in main loop aufrufen, um MPX-Werte zu lesen und MIDI-CCs zu senden
-  void setMPXccNumber(uint8_t inputIndex, uint8_t ccNumber);
-  void setMPXccChannel(uint8_t inputIndex, uint8_t ccChannel);
   void resetMPX();
+  // Callback bei Änderungen
+  actionCallback _changeAction; // Analog Changed action callback
+  void setChangeAction(actionCallback action) { _changeAction = action; }
 
 private:
   void clockMPX();
   void startMPX();
 
   // uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge, hier nicht benötigt, da direkt in handleMPX gelesen und verarbeitet wird
-  uint8_t _analogInputsIntegrated[ANLG_INPUTS_MAX]; // Geglättete/integrierte Werte der _analogen Eingänge
-  uint8_t _analogInputsOld[ANLG_INPUTS_MAX]; // Aktuelle Werte der _analogen Eingänge
-  uint8_t _analogInputTimer[ANLG_INPUTS_MAX]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
-  uint8_t _analogCCnumbers[ANLG_INPUTS_MAX] = {7, 10, 11, 91}; // MIDI CC-Nummern für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
-  uint8_t _analogCCchannels[ANLG_INPUTS_MAX];   // MIDI CC-Kanäle für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
-
+  uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der _analogen Eingänge
+  uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge
+  uint8_t _analogInputTimer[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
+ 
   uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
   uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
   int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
@@ -70,31 +72,18 @@ MPXpots::MPXpots(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout =
 }
 
 void MPXpots::init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR) {
+  _changeAction = dummyAction; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
   _analogMPXinputCount = mpx_input_count;
   _analogMPXactiveTimeout = active_timeout;
   _analogMPXintegrator = integrator_factor;
-  for (uint8_t i = 0; i < _analogMPXinputCount; i++) {
+  for (uint8_t i = 0; i < ANLG_INPUTS; i++) {
     _analogInputsIntegrated[i] = 0;
     _analogInputsOld[i] = 0;
     _analogInputTimer[i] = 0;
-    _analogCCchannels[i] = 1; // default MIDI-Kanal 1
-    if (i >= 4)  _analogCCnumbers[i] = 7; // default MIDI CC 7 (Volume) für weitere Potis über 4
   }
   resetMPX();
-}
+ }
 
-
-void MPXpots::setMPXccNumber(uint8_t inputIndex, uint8_t ccNumber) {
-  if (inputIndex < ANLG_INPUTS_MAX && ccNumber <= 127) {
-    _analogCCnumbers[inputIndex] = ccNumber;
-  }
-}
-
-void MPXpots::setMPXccChannel(uint8_t inputIndex, uint8_t ccChannel) {
-  if (inputIndex < ANLG_INPUTS_MAX && ccChannel <= 15) {
-    _analogCCchannels[inputIndex] = ccChannel;
-  }
-}
 
 void MPXpots::clockMPX() {
   // MPX Data PC0 und MPX-Clk PC1 als Ausgänge
@@ -146,7 +135,7 @@ void MPXpots::handleMPX() {
     timerValue--;
     _analogInputTimer[_analogInputSelect] = timerValue;
     isActive = true;
-    digitalWrite(LED_PIN, LOW);  // sets the LED on
+    digitalWrite(LED_PIN, LOW);  // Timer läuft, Potentiometer aktiv
   } else {
     // Prüfe, ob noch Potis aktiv sind, wenn nicht, LED ausschalten
     bool anyActive = false;
@@ -154,9 +143,8 @@ void MPXpots::handleMPX() {
       if (_analogInputTimer[i] > 0) anyActive = true;
     }
     if (!anyActive) {
-      digitalWrite(LED_PIN, HIGH);  // sets the LED off
+      digitalWrite(LED_PIN, HIGH);  // Timer abgelaufen, kein Potentiometer aktiv
     }
-    // Timer abgelaufen, Integration zurücksetzen, damit schnelle Änderungen der Potis trotzdem relativ schnell durchkommen
   }
   while (ADCSRA & (1 << ADSC)); // warte bis Wandlung abgeschlossen
   // ADC-Rohwert integrieren, um Rauschen zu reduzieren, Integration mit Faktor 4, 
@@ -177,8 +165,10 @@ void MPXpots::handleMPX() {
     // und 3,3V Versorgungsspannung der Potis den vollen MIDI-Wertebereich 0..127 abzudecken
     newValue = (newValue * 77) / 100;
     if (newValue > 127) newValue = 127; // Überlauf verhindern
-    MidiSendController(_analogCCchannels[_analogInputSelect], _analogCCnumbers[_analogInputSelect], newValue); // Volume Upper
     // _analogInputs[_analogInputSelect] = (uint8_t)newValue; // integrierten Wert in aktuelles Array schreiben
+    // Change Action Callback aufrufen, damit Nutzer eigene Aktionen bei Änderungen definieren kann, 
+    // z.B. Anzeige auf LCD aktualisieren oder MIDI-CC senden
+    _changeAction(_analogInputSelect, (uint8_t)newValue);
   }
   clockMPX(); // nächsten MPX-Wert vorbereiten
   _analogInputSelect++;

@@ -141,16 +141,71 @@ bool panel16Present = false;
 #define MENU_DRIVERCOUNT 4
 
 enum {drv_sr61, drv_fatar1, drv_fatar2, drv_custom};
-const String DriverTypes[] = {"Scan16/61", "FatarScan1-61", "FatarScan2", "Custom"};
+
+
+const lcdTextType MenuItems[MENU_ITEMCOUNT] PROGMEM = { 
+  { "Upper Channel" }, 
+  { "Lower Channel" }, 
+  { "Pedal Channel" }, 
+  { "Kbd Driver" }, 
+  { "Upper Base" }, 
+  { "Lower Base" }, 
+  { "Pedal Base" }, 
+  { "Velocity Min" }, 
+  { "Vel. Max Adj." }, 
+  { "Velocity Slope" }, 
+};
+
+const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = { 
+  { "Scan16/61" }, 
+  { "FatarScan1-61" }, 
+  { "FatarScan2" }, 
+  { "Custom" },
+};
 
 enum {m_upper_channel, m_lower_channel, m_pedal_channel, m_driver_type, m_upper_base, m_lower_base, m_pedal_base, m_mindyn, m_maxdynadj, m_slope};
 uint8_t MenuItemActive = m_upper_channel;
-const String MenuItems[] = {"Upper Ch", "Lower Ch", "Pedal Ch", "Kbd Driver", "Upper Base", "Lower Base", "Pedal Base", "Vel. Min", "Vel. Max Adj.", "Vel. Slope"};
+
+
+
 const int8_t MenuValueMin[] = {1, 1, 1, 0, 12, 12, 12, 0, 0, 0};
 const int8_t MenuValueMax[] = {16, 16, 16, MENU_DRIVERCOUNT - 1, 60, 60, 60, 40, 40, 20};
 const int8_t MenuValueDefaults[] = {MIDI_CH_UPR, MIDI_CH_LWR, MIDI_CH_PED, drv_fatar1, MIDI_BASE_UPR, MIDI_BASE_LWR, MIDI_BASE_PED, MIDI_MINDYN, MIDI_MAXDYNADJ, MIDI_DYNSLOPE};
 const String Msg[] = {"FCK TRMP", "FCK AFD"};
 int8_t MenuValues[MENU_ITEMCOUNT];
+
+
+// #############################################################################
+//
+//     #     # ######  #     #      #    #     # #        #####
+//     ##   ## #     #  #   #      # #   ##    # #       #     #
+//     # # # # #     #   # #      #   #  # #   # #       #
+//     #  #  # ######     #      #     # #  #  # #       #  ####
+//     #     # #         # #     ####### #   # # #       #     #
+//     #     # #        #   #    #     # #    ## #       #     #
+//     #     # #       #     #   #     # #     # #######  #####
+//
+// #############################################################################
+
+// #############################################################################
+// Callback für MPX-Eingänge, hier können die MIDI-CC-Werte gesendet werden
+// #############################################################################
+
+#ifdef ANLG_MPX
+
+// Pro MPX-Eingang werden 5 Byte benötigt: integrierter Wert, alter Wert, Timer für Aktivität, CC-Nummer, CC-Kanal
+uint8_t mpxCCnumbers[ANLG_INPUTS] = {7, 10, 11, 91}; // MIDI CC-Nummern für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
+uint8_t mpxCCchannels[ANLG_INPUTS] = {1, 1, 1, 1};   // MIDI CC-Kanäle für die _analogen Eingänge (z.B. Volume, Pan, Expression, Reverb Depth)
+
+// Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge, hier können die MIDI-CC-Werte gesendet werden
+// Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
+void onMPXChange(uint8_t inputIndex, uint8_t value){
+  if (inputIndex < ANLG_INPUTS) {
+    MidiSendController(mpxCCchannels[inputIndex], mpxCCnumbers[inputIndex], value); // Volume Upper
+  }
+}
+
+#endif
 
 // #############################################################################
 //
@@ -311,7 +366,6 @@ void ScanPedal() {
         MidiSendNoteOff(MenuValues[m_pedal_channel], MenuValues[m_pedal_base] + scankey);
       }
     }
-
   }
 }
 
@@ -377,9 +431,6 @@ void ScanManualsFatar2() {
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
   AnyKeyPressed = false;
-  uint8_t portd_tdrive_idle = PORTD & B00000111;
-  uint8_t portb_sense_idle = PORTB & B11111000;
-
   uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
   uint8_t scankey = 0; // aktuelle Taste
   // Reset des 4017 T-Drive Counters
@@ -555,7 +606,8 @@ void displayMenuValue(uint8_t itemIndex) {
   int8_t item_value = MenuValues[itemIndex];
   switch (itemIndex) {
     case m_driver_type:
-      lcd.print(DriverTypes[item_value]);
+      // Kopiert Menu Text aus PROGMEM ins RAM, da lcd.print() nicht direkt aus PROGMEM lesen kann
+      lcd.printProgmem(&DriverTypes[item_value]);
       lcd.clearEOL(); // Lösche evtl. alte Zeichen
       lcd.setCursor(13, 1);
       break;
@@ -574,7 +626,8 @@ void displayMenuValue(uint8_t itemIndex) {
 
 void displayMenuItem(uint8_t itemIndex) {
   lcd.setCursor(0, 0);
-  lcd.print(MenuItems[itemIndex]);
+  // Kopiert MenuItem aus PROGMEM ins RAM, da lcd.print() nicht direkt aus PROGMEM lesen kann
+  lcd.printProgmem(&MenuItems[itemIndex]);
   lcd.clearEOL(); // Lösche evtl. alte Zeichen
   lcd.setCursor(15, 0);
   lcd.print(LCD_ARW_UD);
@@ -738,7 +791,9 @@ void setup() {
     panel16.setLEDstate(13, LED_DIM_DARK); // einzelne LED in upper row
   }
 #endif
+
 #ifdef ANLG_MPX
+  mpxPots.setChangeAction(onMPXChange); // MPX-gestützte analoge Eingänge initialisieren, Callback-Funktion für Änderungen übergeben
   mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
 #endif
 }
@@ -774,8 +829,8 @@ void loop() {
 #endif
 #ifdef PANEL16
     // Test für Panel16 Button-Abfrage
-    if ((Timer1RoundRobin == 8) && (AnyKeyPressed == 0)) {
-      if (panel16Present) {
+    if (panel16Present && (AnyKeyPressed == 0)) {
+      if (Timer1RoundRobin == 8) {
         uint8_t btns = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
         if (btns) {
           uint8_t bnt_number = panel16.buttonByteToNumber(0, btns);
@@ -785,13 +840,25 @@ void loop() {
           panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
           panel16.getButtonRowWaitReleased(0);
           handleEncoder(0, true);
-        };   // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+        }; 
+      }      
+      if (Timer1RoundRobin == 12) {
+        uint8_t btns = panel16.getButtonRow(1); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+        if (btns) {
+          uint8_t bnt_number = panel16.buttonByteToNumber(1, btns);
+          lcd.setCursor(0, 1);
+          lcd.print("Btn: ");
+          lcd.print(bnt_number, DEC);
+          panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
+          panel16.getButtonRowWaitReleased(1);
+          handleEncoder(0, true);
+        }; 
       }
     }
 #endif
 #ifdef ANLG_MPX
    if (Timer1RoundRobin == 4) {
-     mpxPots.handleMPX();
+     mpxPots.handleMPX(); // muss regelmäßig aufgerufen werden, um Änderungen aller Potis zu erkennen
    }
 #endif
   }
