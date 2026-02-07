@@ -10,8 +10,8 @@ Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface b
 
 I case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
-
-New approach for velocity table:
+Version Info:
+ * New approach for velocity table with variable slope:
 
 ```cpp
 void CreateDynTable(uint8_t mindyn, uint8_t slope) {
@@ -30,11 +30,10 @@ void CreateDynTable(uint8_t mindyn, uint8_t slope) {
 }
 ```
 
-Version Info:
- * New approach for velocity table with variable slope
  * Added support for analog inputs with KeyboardPartner MPX boards (SR-based multiplexer)
  * Faster bit manipulation on ports by inline assembler macros
  * Menu Strings moved to progmem, editable CC numbers
+ * Improved support for Panel16 LED Button board, some examples in *main.cpp*
 
 
 C. Meyer 2/2026

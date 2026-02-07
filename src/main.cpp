@@ -110,7 +110,7 @@ volatile uint8_t Timer1RoundRobin = 0;
 
 #define LCD_I2C
 #define ANLG_MPX
-//#define PANEL16
+#define PANEL16
 
 #ifdef LCD_I2C
   // Für LCD mit I2C-Interface
@@ -747,51 +747,52 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
 
-#ifdef LCD_I2C
-  Wire.beginTransmission(LCD_I2C_ADDR); // Display I2C-Adresse
-  if (Wire.endTransmission(true) == 0) {
-    // Display gefunden
-    lcdPresent = true;
-    lcd.begin(16, 2);
-    delay(500); // Warte auf Display-Start
-    lcd.setCursor(0, 0);
-    lcd.print("ScanCtrl 0.9");
-    lcd.setCursor(0, 1);
-    lcd.print("C.Meyer 2026");
-    lcd.createChar(LCD_ARW_UP, lcd.arrowUp);
-    lcd.createChar(LCD_ARW_DN, lcd.arrowDown);
-    lcd.createChar(LCD_ARW_LT, lcd.arrowLeft);
-    lcd.createChar(LCD_ARW_LT_GREY, lcd.arrowLeftGrey);
-    lcd.createChar(LCD_ARW_UD, lcd.arrowUpDown);
-    lcd.createChar(LCD_ARW_UD_GREY, lcd.arrowUpDownGrey);
-    blinkLED(5);
-    displayMenuItem(MenuItemActive);
-  } else {
-    // Kein Display gefunden
+  #ifdef LCD_I2C
+    Wire.beginTransmission(LCD_I2C_ADDR); // Display I2C-Adresse
+    if (Wire.endTransmission(true) == 0) {
+      // Display gefunden
+      lcdPresent = true;
+      lcd.begin(16, 2);
+      delay(500); // Warte auf Display-Start
+      lcd.setCursor(0, 0);
+      lcd.print("ScanCtrl 0.9");
+      lcd.setCursor(0, 1);
+      lcd.print("C.Meyer 2026");
+      lcd.createChar(LCD_ARW_UP, lcd.arrowUp);
+      lcd.createChar(LCD_ARW_DN, lcd.arrowDown);
+      lcd.createChar(LCD_ARW_LT, lcd.arrowLeft);
+      lcd.createChar(LCD_ARW_LT_GREY, lcd.arrowLeftGrey);
+      lcd.createChar(LCD_ARW_UD, lcd.arrowUpDown);
+      lcd.createChar(LCD_ARW_UD_GREY, lcd.arrowUpDownGrey);
+      blinkLED(5);
+      displayMenuItem(MenuItemActive);
+    } else {
+      // Kein Display gefunden
+      blinkLED(3);
+    }
+  #else
+    // Kein Display-Support
     blinkLED(3);
-  }
-#else
-  // Kein Display-Support
-  blinkLED(3);
-#endif
+  #endif
 
-#ifdef PANEL16
-  // just a test for Panel16 library
-  Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
-  if (Wire.endTransmission(true) == 0) {
-    panel16Present = true;
-    panel16.begin();
-    panel16.setLEDstate(1, LED_DIM_BRIGHT); // einzelne LED in lower row
-    panel16.setLEDstate(2, LED_DIM_BRIGHT); // einzelne LED in lower row
-    panel16.setLEDstate(3, LED_DIM_DARK); // einzelne LED in lower row
-    panel16.setLEDstate(13, LED_DIM_DARK); // einzelne LED in upper row
-  }
-#endif
+  #ifdef PANEL16
+    // just a test for Panel16 library
+    Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
+    if (Wire.endTransmission(true) == 0) {
+      panel16Present = true;
+      panel16.begin();
+      panel16.setLEDstate(2, panel16.led_hilight | panel16.led_alt_dark | panel16.led_blink_ena); // einzelne LED in lower row
+      panel16.setLEDstate(3, panel16.led_dark | panel16.led_alt_dark | panel16.led_btn_on); // einzelne LED in lower row
+      panel16.setLEDstate(4, 0b10001001); // einzelne LED in lower row, direkte Bitmask, entspricht hilight, alt_bright, off_dark, blink_ena
+      panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in lower row
+      panel16.setLEDstate(13, panel16.led_dark | panel16.led_btn_on); // einzelne LED in upper row
+    }
+  #endif
 
-#ifdef ANLG_MPX
-  mpxPots.setChangeAction(onMPXChange); // MPX-gestützte analoge Eingänge initialisieren, Callback-Funktion für Änderungen übergeben
-  mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
-#endif
+  #ifdef ANLG_MPX
+    mpxPots.setChangeAction(onMPXChange); // MPX-gestützte analoge Eingänge initialisieren, Callback-Funktion für Änderungen übergeben
+    mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
+  #endif
 }
 
 // #############################################################################
@@ -815,52 +816,55 @@ void loop() {
         break;
     }
     MidiMerge();    // nicht der Rede wert, falls nichts anliegt
-#ifdef LCD_I2C
-    if (lcdPresent) {
-      handleEncoder(lcd.getEncoderDelta(), false);
-      if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
-        handleButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+    #ifdef LCD_I2C
+      if (lcdPresent) {
+        handleEncoder(lcd.getEncoderDelta(), false);
+        if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
+          handleButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+        }
       }
-    }
-#endif
-#ifdef PANEL16
-    // Test für Panel16 Button-Abfrage
-    if (panel16Present && (AnyKeyPressed == 0)) {
-      if (Timer1RoundRobin == 8) {
-        uint8_t btns = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
-        if (btns) {
-          uint8_t bnt_number = panel16.buttonByteToNumber(0, btns);
-          lcd.setCursor(0, 1);
-          lcd.print("Btn: ");
-          lcd.print(bnt_number, DEC);
-          panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
-          panel16.getButtonRowWaitReleased(0);
-#ifdef LCD_I2C
-          if (lcdPresent) displayMenuItem(MenuItemActive);
-#endif
-        }; 
-      }      
-      if (Timer1RoundRobin == 12) {
-        uint8_t btns = panel16.getButtonRow(1); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
-        if (btns) {
-          uint8_t bnt_number = panel16.buttonByteToNumber(1, btns);
-          lcd.setCursor(0, 1);
-          lcd.print("Btn: ");
-          lcd.print(bnt_number, DEC);
-          panel16.toggleLEDstate(bnt_number, LED_DIM_BRIGHT);
-          panel16.getButtonRowWaitReleased(1);
-#ifdef LCD_I2C
-          if (lcdPresent) displayMenuItem(MenuItemActive);
-#endif
-        }; 
+    #endif
+
+    #ifdef PANEL16
+      // Test für Panel16 Button-Abfrage
+      if (panel16Present && (AnyKeyPressed == 0)) {
+        if (Timer1RoundRobin == 4) {
+          panel16.updateBlinkLEDs();
+        }
+        if (Timer1RoundRobin == 8) {
+          uint8_t bnt_number = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+          if (bnt_number != 0xFF) {
+            lcd.setCursor(0, 1);
+            lcd.print("Btn: ");
+            lcd.print(bnt_number, DEC);
+            panel16.toggleLEDstate(bnt_number);
+            panel16.getButtonRowWaitReleased(0);
+            #ifdef LCD_I2C
+              if (lcdPresent) displayMenuItem(MenuItemActive);
+            #endif
+          }; 
+        }      
+        if (Timer1RoundRobin == 12) {
+          uint8_t bnt_number = panel16.getButtonRow(1); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+          if (bnt_number != 0xFF) {
+            lcd.setCursor(0, 1);
+            lcd.print("Btn: ");
+            lcd.print(bnt_number, DEC);
+            panel16.toggleLEDstate(bnt_number);
+            panel16.getButtonRowWaitReleased(1);
+            #ifdef LCD_I2C
+              if (lcdPresent) displayMenuItem(MenuItemActive);
+            #endif
+          }; 
+        }
       }
-    }
-#endif
-#ifdef ANLG_MPX
-   if (Timer1RoundRobin == 4) {
-     mpxPots.handleMPX(); // muss regelmäßig aufgerufen werden, um Änderungen aller Potis zu erkennen
-   }
-#endif
+    #endif
+
+    #ifdef ANLG_MPX
+      if (Timer1RoundRobin == 4) {
+        mpxPots.handleMPX(); // muss regelmäßig aufgerufen werden, um Änderungen aller Potis zu erkennen
+      }
+    #endif
   }
 }
 
