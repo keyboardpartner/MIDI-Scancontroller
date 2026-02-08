@@ -10,8 +10,7 @@
 //
 // #############################################################################
 */
-// Class Lib for KBP MenuPanel, C. Meyer 1/2026
-// Based on work from DFROBOT
+// Class Lib for KBP Panel16 I2C, Preset16 or Extend16, C. Meyer 1/2026
 
 #ifndef Panel16_h
 #define Panel16_h
@@ -31,6 +30,10 @@ public:
   void setLEDsUpperByte(uint8_t row, uint8_t ledbyte);
   void setLEDsLowerByte(uint8_t row, uint8_t ledbyte);
   void setLEDsWord(uint8_t row, uint16_t ledword);
+
+  // LED States:
+  // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState 
+  // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
 
   // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright 
   // LED-States Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright

@@ -135,22 +135,22 @@ const lcdTextType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   { "Pot 15 CC" },  // #21 
   { "Pot 16 CC" },  // #22 
   { "Pot Assign" },  // #23  EXIT SUBM
-  { "Button 1" },  // #24 
-  { "Button 2" },  // #25 
-  { "Button 3" },  // #26 
-  { "Button 4" },  // #27 
-  { "Button 5" },  // #28 
-  { "Button 6" },  // #29 
-  { "Button 7" },  // #30 
-  { "Button 8" },  // #31 
-  { "Button 9" },  // #32 
-  { "Button 10" },  // #33 
-  { "Button 11" },  // #34 
-  { "Button 12" },  // #35 
-  { "Button 13" },  // #36 
-  { "Button 14" },  // #37 
-  { "Button 15" },  // #38 
-  { "Button 16" },  // #39 
+  { "Btn 1 CC" },  // #24 
+  { "Btn 2 CC" },  // #25 
+  { "Btn 3 CC" },  // #26 
+  { "Btn 4 CC" },  // #27 
+  { "Btn 5 CC" },  // #28 
+  { "Btn 6 CC" },  // #29 
+  { "Btn 7 CC" },  // #30 
+  { "Btn 8 CC" },  // #31 
+  { "Btn 9 CC" },  // #32 
+  { "Btn 10 CC" },  // #33 
+  { "Btn 11 CC" },  // #34 
+  { "Btn 12 CC" },  // #35 
+  { "Btn 13 CC" },  // #36 
+  { "Btn 14 CC" },  // #37 
+  { "Btn 15 CC" },  // #38 
+  { "Btn 16 CC" },  // #39 
   { "Button Assign" },  // #40  EXIT SUBM
   { "Kbd Driver" },  // #41 
   { "Velocity Min" },  // #42 
@@ -162,7 +162,7 @@ const lcdTextType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   { "Keyboard" },  // #48  EXIT SUBM
 };
 
-const int8_t MenuValueMin[MENU_ITEMCOUNT] = {
+int8_t MenuValueMin[MENU_ITEMCOUNT] = {
   1, // #0 = Upper Channel
   1, // #1 = Lower Channel
   1, // #2 = Pedal Channel
@@ -214,7 +214,7 @@ const int8_t MenuValueMin[MENU_ITEMCOUNT] = {
   0, // #48 = Keyboard EXIT 
 };
 
-const int8_t MenuValueMax[MENU_ITEMCOUNT] = {
+int8_t MenuValueMax[MENU_ITEMCOUNT] = {
   16, // #0 = Upper Channel
   16, // #1 = Lower Channel
   16, // #2 = Pedal Channel

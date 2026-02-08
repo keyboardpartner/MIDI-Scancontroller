@@ -706,15 +706,17 @@ void setup() {
   blinkLED(3);
 
   #ifdef PANEL16
-    // just a test for Panel16 library
-    Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
+     Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
     if (Wire.endTransmission(true) == 0) {
       panel16Present = true;
       panel16.begin();
+      // just a test for Panel16 library
+      // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState 
+      // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)    
       panel16.setLEDstate(2, panel16.led_hilight | panel16.led_alt_dark | panel16.led_blink_ena); // einzelne LED in lower row
       panel16.setLEDstate(3, panel16.led_dark | panel16.led_alt_dark | panel16.led_btn_on); // einzelne LED in lower row
       panel16.setLEDstate(4, 0b10001001); // einzelne LED in lower row, direkte Bitmask, entspricht hilight, alt_bright, off_dark, blink_ena
-      panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in lower row
+      panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in upper row
       panel16.setLEDstate(13, panel16.led_dark | panel16.led_btn_on); // einzelne LED in upper row
     }
   #endif
@@ -757,7 +759,7 @@ void loop() {
 
     #ifdef PANEL16
       // Test für Panel16 Button-Abfrage
-      if (panel16Present && (AnyKeyPressed == 0)) {
+      if (panel16Present) {
         if (Timer1RoundRobin == 4) {
           panel16.updateBlinkLEDs();
         }
@@ -765,7 +767,7 @@ void loop() {
           uint8_t bnt_number = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
           if (bnt_number != 0xFF) {
             uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number - 1], btn_onoff);
+            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
             panel16.toggleLEDstate(bnt_number);
             panel16.getButtonRowWaitReleased(0);
             #ifdef LCD_I2C
@@ -777,7 +779,7 @@ void loop() {
           uint8_t bnt_number = panel16.getButtonRow(1); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
           if (bnt_number != 0xFF) {
             uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number - 1], btn_onoff);
+            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
             panel16.toggleLEDstate(bnt_number);
             panel16.getButtonRowWaitReleased(1);
             #ifdef LCD_I2C

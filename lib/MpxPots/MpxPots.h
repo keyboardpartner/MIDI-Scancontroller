@@ -61,15 +61,15 @@ private:
   void clockMPX();
   void startMPX();
 
-  uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der _analogen Eingänge
-  uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge
+  uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der analogen Eingänge
+  uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
   uint8_t _analogInputTimers[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
-  uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge, 0..127, werden nach Integration und Mapping auf MIDI-Bereich in handleMPX() aktualisiert
+  uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge, 0..127, werden nach Integration und Mapping auf MIDI-Bereich in handleMPX() aktualisiert
  
-  uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
+  uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
   uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; 
   int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR; 
-  uint8_t _analogInputSelect = 0; // derzeit ausgewählter _analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
+  uint8_t _analogInputSelect = 0; // derzeit ausgewählter analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
 };
 
 MPXpots::MPXpots(uint8_t mpx_input_count, uint8_t active_timeout, int16_t integrator_factor) {

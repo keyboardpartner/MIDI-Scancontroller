@@ -10,7 +10,7 @@
 //
 // #############################################################################
 */
-// Class Lib for KBP Panel16 I2C C. Meyer 1/2026
+// Class Lib for KBP Panel16 I2C, Preset16 or Extend16, C. Meyer 1/2026
 
 #include "Panel16.h"
 #include <inttypes.h>
@@ -40,7 +40,7 @@ void Panel16::begin() {
 }
 
 void Panel16::setLEDdim(uint8_t dimlevel_bright, uint8_t dimlevel_dark) {
-	_data[0] = 0x12; // PCA9532 Command, 2 = PWM Frequency, AutoIncrement off
+	_data[0] = 0x12; // PCA9532 Command, 2 = PWM Frequency, AutoIncrement on
 	_data[1] = 0x00; // PWM Frequency = 152 / (n+1) Hz
 	// PCA9532 Command, 3 = LED brightness
 	_data[2] = dimlevel_dark; // darkest setting
@@ -58,7 +58,7 @@ void Panel16::setLEDsUpperByte(uint8_t row, uint8_t ledbyte) {
   // LEDs 4..7 einer Row setzen
   // %00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
   // row 0 = lower row, 1 = upper row
-  _data[0] = 0x07 + row * 2; // PCA9532 Command, 7 = LED 4-7
+  _data[0] = 0x07 + row * 2; // PCA9532 Command, 7 = LED 4-7, AutoIncrement off
   _data[1] = ledbyte;
 	// Send data
   Wire.beginTransmission(_Addr);
@@ -70,7 +70,7 @@ void Panel16::setLEDsLowerByte(uint8_t row, uint8_t ledbyte) {
   // LEDs 0..3 einer Row setzen
   // %00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
   // row 0 = lower row, 1 = upper row
-  _data[0] = 0x06 + row * 2; // PCA9532 Command, 6 = LED 0-3
+  _data[0] = 0x06 + row * 2; // PCA9532 Command, 6 = LED 0-3, AutoIncrement off
   _data[1] = ledbyte;
 	// Send data
   Wire.beginTransmission(_Addr);
@@ -81,7 +81,7 @@ void Panel16::setLEDsLowerByte(uint8_t row, uint8_t ledbyte) {
 void Panel16::setLEDsWord(uint8_t row, uint16_t ledword) {
   // %00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
   // row 0 = lower row, 1 = upper row
-  _data[0] = 0x16 + row * 2; // PCA9532 Command, 6 = LED 0-3
+  _data[0] = 0x16 + row * 2; // PCA9532 Command, 6 = LED 0-3, AutoIncrement on
   _data[1] = (uint8_t)ledword;
   _data[2] = (uint8_t)(ledword >> 8);
 	// Send data
