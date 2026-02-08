@@ -61,15 +61,14 @@ private:
   void clockMPX();
   void startMPX();
 
-  // uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge, hier nicht benötigt, da direkt in handleMPX gelesen und verarbeitet wird
   uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der _analogen Eingänge
   uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge
   uint8_t _analogInputTimers[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
-  uint8_t _analogInputs[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
+  uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der _analogen Eingänge, 0..127, werden nach Integration und Mapping auf MIDI-Bereich in handleMPX() aktualisiert
  
   uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
-  uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
-  int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR; // Anzahl der tatsächlich genutzten _analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
+  uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; 
+  int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR; 
   uint8_t _analogInputSelect = 0; // derzeit ausgewählter _analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
 };
 
@@ -171,10 +170,13 @@ void MPXpots::handleMPX() {
     // und 3,3V Versorgungsspannung der Potis den vollen MIDI-Wertebereich 0..127 abzudecken
     newValue = (newValue * 77) / 100;
     if (newValue > 127) newValue = 127; // Überlauf verhindern
-    _analogInputs[_analogInputSelect] = (uint8_t)newValue; // integrierten Wert in aktuelles Array schreiben
+
     // Change Action Callback aufrufen, damit Nutzer eigene Aktionen bei Änderungen definieren kann, 
     // z.B. Anzeige auf LCD aktualisieren oder MIDI-CC senden
-    _changeAction(_analogInputSelect, (uint8_t)newValue);
+    if ((uint8_t)newValue != _analogInputs[_analogInputSelect]) {
+      _changeAction(_analogInputSelect, (uint8_t)newValue);
+      _analogInputs[_analogInputSelect] = (uint8_t)newValue; // integrierten Wert in aktuelles Array schreiben
+    }
   }
   clockMPX(); // nächsten MPX-Wert vorbereiten
   _analogInputSelect++;

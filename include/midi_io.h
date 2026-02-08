@@ -212,7 +212,7 @@ void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
     LastRunningStatusSent = cmd_byte;
   }
   Serial.write(cc);  // Controller number
-  Serial.write(value);   // Dynamik
+  Serial.write(value & 0x7F);   // Dynamik
 }
 
 #endif

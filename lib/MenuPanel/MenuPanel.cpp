@@ -281,16 +281,13 @@ uint8_t MenuPanel::getButtons() {
 	return ~(data_byte >>3) & 0x07; // Nur 3 Bits sind Tasten
 }
 
-uint8_t MenuPanel::getButtonsWaitReleased() {
-	uint8_t buttons, last_buttons;
-	last_buttons = 0;
+uint8_t MenuPanel::getButtonsWaitReleased(uint16_t timeout_ms) {
+	uint8_t buttons;
+	uint32_t timeout_time = millis() + timeout_ms;
 	do {
 		buttons = getButtons();
-		if (buttons != 0) {
-			last_buttons = buttons;
-		}
-	} while (buttons != 0); // Warten bis alle Tasten losgelassen sind
-	return last_buttons;
+	} while ((buttons != 0) && ((millis() < timeout_time) || (timeout_ms == 0))); // Warten bis alle Tasten losgelassen sind oder Timeout
+	return buttons; // enthält bei Timeout die noch gedrückten Tasten, ansonsten 0
 }
 
 // #############################################################################

@@ -21,6 +21,7 @@
 #include <Wire.h>
 
 // HD44780U defines
+#define LCD_I2C_ADDR 0x20
 
 // commands
 #define LCD_CLEARDISPLAY 0x01
@@ -80,6 +81,8 @@
 #define LCD_ARW_LT_GREY char(3)
 #define LCD_ARW_UD char(4)
 #define LCD_ARW_UD_GREY char(5)
+#define LCD_ARW_RT char(6)
+#define LCD_ARW_RT_GREY char(7)
 
 // Dieser Hack wird benötigt, um die Menü-Items im Flash-Speicher zu halten, da das RAM beim ATmega328P knapp ist.
 // Menü-Items sind maximal 16 Zeichen lang, damit sie genau in eine LCD-Zeile passen, plus Nullterminator
@@ -95,6 +98,9 @@ public:
   const uint8_t arrowLeftGrey[8] = {0x02, 0x04, 0x0A, 0x14, 0x0A, 0x04, 0x02, 0x00};  // "<" Cursor grey
   const uint8_t arrowUpDown[8] = {0x04, 0x0E, 0x1F, 0x00, 0x1F, 0x0E, 0x04, 0x00}; // Updown (white}
   const uint8_t arrowUpDownGrey[8] = {0x04, 0x0A, 0x15, 0x00, 0x15, 0x0A, 0x04, 0x00}; // Updown (grey}
+  const uint8_t arrowRight[8] = {0x08, 0x0C, 0x0E, 0x0F, 0x0E, 0x0C, 0x08, 0x00}; // ">" Cursor filled (white}
+  const uint8_t arrowRightGrey[8] = {0x08, 0x04, 0x0A, 0x04, 0x0A, 0x04, 0x08, 0x00}; // ">" Cursor grey
+
 
   MenuPanel(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
   void begin(uint8_t cols, uint8_t rows); // , uint8_t charsize = LCD_5x8DOTS );
@@ -118,7 +124,7 @@ public:
   void command(uint8_t);
   void init();
   uint8_t getButtons();
-  uint8_t getButtonsWaitReleased(); // as above, wait for release of all buttons
+  uint8_t getButtonsWaitReleased(uint16_t timeout_ms); // as above, wait for release of all buttons
   int16_t getEncoderDelta();
 
   //compatibility API function aliases
