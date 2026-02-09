@@ -19,8 +19,6 @@
 #include "Print.h"
 #include <Wire.h>
 
-
-
 class Panel16 {
 public:
   Panel16(uint8_t panel_Addr);
@@ -32,10 +30,10 @@ public:
   void setLEDsWord(uint8_t row, uint16_t ledword);
 
   // LED States:
-  // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState 
+  // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState
   // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
 
-  // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright 
+  // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright
   // LED-States Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright
   // LED-States Bit 6: led blinking if on/active
   // LED-States Bit 7: led active (on or blinking)
@@ -69,7 +67,14 @@ public:
   uint8_t getButtonRowWaitReleased(uint8_t row); // as above, wait for release of all buttons
   void updateBlinkLEDs(); // toggle LEDs with blinking active, should be called periodically every few ms
 
+  typedef void (*actionCallback)(uint8_t button);
+  void setWaitCallback(actionCallback action) { _waitAction = action; } // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+
 private:
+
+  static void dummyAction(uint8_t button) { delay(10); } // debounce, in case user callback is not defined
+  actionCallback _waitAction; // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+
   void init_priv();
   uint8_t _data[8];
   uint8_t _Addr;
@@ -77,11 +82,11 @@ private:
   uint8_t _blinkToggle = 0;
   uint32_t _lastBlinkMillis = 0;
 
-  // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright 
+  // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright
   // LED-States Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright
   // LED-States Bit 6: led blinking if on/active
   // LED-States Bit 7: led active (on or blinking)
-  uint8_t _LEDstates[16]; 
+  uint8_t _LEDstates[16];
 };
 
 #endif

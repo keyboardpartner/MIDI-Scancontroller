@@ -13,7 +13,7 @@
 // MIDI Controller for FATAR keybeds, C. Meyer 1/2026
 // Banner Logos from
 // https://patorjk.com/software/taag/#p=display&f=Banner&t=MAIN&x=cppComment&v=4&h=2&w=80&we=false
-// 20 MHz Bootloaders: 
+// 20 MHz Bootloaders:
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 
 #include <Arduino.h>
@@ -122,34 +122,6 @@ bool panel16Present = false;
 #endif
 
 
-// #############################################################################
-//
-//     #     # ######  #     #      #    #     # #        #####
-//     ##   ## #     #  #   #      # #   ##    # #       #     #
-//     # # # # #     #   # #      #   #  # #   # #       #
-//     #  #  # ######     #      #     # #  #  # #       #  ####
-//     #     # #         # #     ####### #   # # #       #     #
-//     #     # #        #   #    #     # #    ## #       #     #
-//     #     # #       #     #   #     # #     # #######  #####
-//
-// #############################################################################
-
-// #############################################################################
-// Callback für MPX-Eingänge, hier können die MIDI-CC-Werte gesendet werden
-// #############################################################################
-
-#ifdef ANLG_MPX
-
-// Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge, hier können die MIDI-CC-Werte gesendet werden
-// Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
-void onMPXChange(uint8_t inputIndex, uint8_t value){
-  if (MenuValues[m_CC1 + inputIndex] >= 0) {
-    // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
-    MidiSendController(MenuValues[m_upper_channel], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
-  }
-}
-
-#endif
 
 // #############################################################################
 //
@@ -520,6 +492,45 @@ void configurePorts(uint8_t driverType) {
 
 // #############################################################################
 //
+//     #     # ######  #     #      #    #     # #        #####
+//     ##   ## #     #  #   #      # #   ##    # #       #     #
+//     # # # # #     #   # #      #   #  # #   # #       #
+//     #  #  # ######     #      #     # #  #  # #       #  ####
+//     #     # #         # #     ####### #   # # #       #     #
+//     #     # #        #   #    #     # #    ## #       #     #
+//     #     # #       #     #   #     # #     # #######  #####
+//
+// #############################################################################
+
+// #############################################################################
+// Callback für MPX-Eingänge, hier können die MIDI-CC-Werte gesendet werden
+// Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
+// #############################################################################
+
+#ifdef ANLG_MPX
+
+// Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge
+void onMPXChange(uint8_t inputIndex, uint8_t value) {
+  if (inputIndex == MenuValues[m_pitchwheel_pot]) {
+    // Pot ist Pitchwheel, sendet Pitch Bend Change, Wert 0..127 wird auf -8192..8191 gemappt
+    int16_t pitch_value = ((int16_t)value - 64) * 128; // Wert von 0..127 auf -8192..8191 mappen
+    MidiSendPitchBend(MenuValues[m_upper_channel], pitch_value);
+  } else if (inputIndex == MenuValues[m_modulation_pot]) {
+    // Pot ist Modulation, sendet Modulation Wheel CC, Wert 0..127 direkt senden
+    MidiSendController(MenuValues[m_upper_channel], 1, value);
+  } else {
+    // andere Potentiometer senden MIDI CC, Kanal und CC-Nummer aus MenuValues, Wert 0..127 direkt senden
+    // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
+    if (MenuValues[m_CC1 + inputIndex] >= 0) {
+      MidiSendController(MenuValues[m_upper_channel], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
+    }
+  }
+}
+
+#endif
+
+// #############################################################################
+//
 //     #     # ####### #     # #     #
 //     ##   ## #       ##    # #     #
 //     # # # # #       # #   # #     #
@@ -543,9 +554,8 @@ void blinkLED(uint8_t times) {
 
 #ifdef LCD_I2C
 
-
 void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
-  // Menü-Handling bei Encoder-Änderungen: Wert ändern, 
+  // Menü-Handling bei Encoder-Änderungen: Wert ändern,
   // bei Änderung des Treibertyps Ports neu konfigurieren, Dynamiktabelle neu erstellen
   if (MenuLink[MenuItemActive] != 0) return; // im Untermenü-Link, Encoder hat keine Funktion
   if ((encoderDelta != 0) || forceDisplay) {
@@ -574,7 +584,7 @@ void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
   }
 }
 
-void handleButtons() {
+void handleMenuButtons() {
   // Menü-Handling bei Button-Änderungen: Menupunkt wechseln oder Wert in EEPROM speichern
   uint8_t buttons = lcd.getButtons(); // benötigt etwa 130 µs (inkl. I2C Overhead) bei 400 kHz
   int8_t menu_link = MenuLink[MenuItemActive];
@@ -591,7 +601,7 @@ void handleButtons() {
         }
         displayMenuItem(MenuItemActive);
         buttons = lcd.getButtonsWaitReleased(timeout); // Warte bis losgelassen
-        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird       
+        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
       } while (buttons);
     }
 
@@ -606,7 +616,7 @@ void handleButtons() {
         }
         displayMenuItem(MenuItemActive);
         buttons = lcd.getButtonsWaitReleased(timeout); // Warte bis losgelassen
-        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird       
+        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
       } while (buttons);
     }
 
@@ -615,7 +625,7 @@ void handleButtons() {
       if (menu_link < 0) {
         // Link zurück zum Hauptmenü, wechsle zurück
         MenuItemActive = MenuItemReturn; // Link ist negativ, also zurück zum Hauptmenü
-        MenuStart = 0;  
+        MenuStart = 0;
         MenuEnd = m_end - 1;
         displayMenuItem(MenuItemActive);
       } else if (menu_link > 0) {
@@ -630,7 +640,7 @@ void handleButtons() {
             break; // Ende des Untermenüs erreicht
           }
         }
-      } else {     
+      } else {
         // Kein Link, speichere Wert im EEPROM
         EEPROM.update(MenuItemActive + EEPROM_MENUDEFAULTS, MenuValues[MenuItemActive]);
         displayMenuItem(MenuItemActive);
@@ -644,6 +654,45 @@ void handleButtons() {
 
 #endif
 
+#ifdef PANEL16
+
+void handlePanel16(uint8_t row) {
+  // Panel16-Handling, hier werden Tasten einer Reihe abgefragt und LEDs gesetzt
+  uint8_t bnt_number = panel16.getButtonRow(row); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+  if (bnt_number != 0xFF) {
+    uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
+    switch (MenuValues[m_btnmode1 + bnt_number]) {
+      case btnmode_send_cc_val:
+        // Button Mode 0 = Toggle, sendet MIDI-CC mit 127 bei ON und 0 bei OFF
+        MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
+        panel16.toggleLEDstate(bnt_number);
+        break;
+      case btnmode_send_cc_evt:
+        // Button Mode 1 = Event, sendet immer MIDI-CC mit 127 bei ON und bei OFF
+        MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], 127);
+        break;
+      case btnmode_send_prg_ch:
+        // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
+        MidiSendProgramChange(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
+        break;
+      case btnmode_send_note:
+        // Button Mode 3 = Note On/Off, sendet MIDI Note On mit Velocity 64 bei ON und Note Off bei OFF, Note Nummer aus MenuValues[m_btn1 + bnt_number]
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
+        panel16.getButtonRowWaitReleased(0);
+        MidiSendNoteOff(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
+        break;
+    }
+    panel16.getButtonRowWaitReleased(0);
+    #ifdef LCD_I2C
+      if (lcdPresent) displayMenuItem(MenuItemActive);
+    #endif
+  };
+}
+
+#endif
+
+
+
 // #############################################################################
 //
 //     #     #    #    ### #     #
@@ -655,6 +704,27 @@ void handleButtons() {
 //     #     # #     # ### #     #
 //
 // #############################################################################
+
+void scanKeybeds(uint8_t button) {
+  // ist gleichzeitig Callback-Funktion für Panel16, die liefert derzeit gedrückten Button
+  // Wird von der Panel16-Library aufgerufen, während ein Panel16-Button gedrückt und auf Loslassen gewartet wird
+  // Dadurch können die Manuale weiter gescannt werden, ohne die Scan-Funktion zu blockieren
+  ScanPedal();    // 25 us bei 20 MHz
+  switch (MenuValues[m_driver_type]) {
+    case drv_fatar1:
+      ScanManualsFatar1_61(); // 270 us bei 20 MHz
+      break;
+    case drv_fatar2:
+      ScanManualsFatar2();   // 250 us bei 20 MHz
+      break;
+    case drv_sr61:
+      ScanManualsSR61();     // 81 us bei 20 MHz
+      break;
+    default:
+      break;
+  }
+  MidiMerge();    // nicht der Rede wert, falls nichts anliegt
+}
 
 void timer1SemaphoreISR() {
   // Timer1 Interrupt Service Routine, setzt Semaphore für Timer-basiertes Ausführen
@@ -690,8 +760,8 @@ void setup() {
   Timer1.initialize(500); // Timer1 auf 500 us einstellen
 
   MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 2
+  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 3
 
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
@@ -711,13 +781,14 @@ void setup() {
       panel16Present = true;
       panel16.begin();
       // just a test for Panel16 library
-      // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState 
-      // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)    
+      // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState
+      // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
       panel16.setLEDstate(2, panel16.led_hilight | panel16.led_alt_dark | panel16.led_blink_ena); // einzelne LED in lower row
       panel16.setLEDstate(3, panel16.led_dark | panel16.led_alt_dark | panel16.led_btn_on); // einzelne LED in lower row
       panel16.setLEDstate(4, 0b10001001); // einzelne LED in lower row, direkte Bitmask, entspricht hilight, alt_bright, off_dark, blink_ena
       panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in upper row
       panel16.setLEDstate(13, panel16.led_dark | panel16.led_btn_on); // einzelne LED in upper row
+      panel16.setWaitCallback(scanKeybeds); // Callback-Funktion für Button-Handling registrieren
     }
   #endif
 
@@ -733,26 +804,14 @@ void loop() {
   while (Timer1Semaphore) {
     // wird alle 500µs neu gesetzt durch Timer1 ISR, hier wird die eigentliche Arbeit erledigt
     Timer1Semaphore--;
-    ScanPedal();    // 25 us bei 20 MHz
-    switch (MenuValues[m_driver_type]) {
-      case drv_fatar1:
-        ScanManualsFatar1_61(); // 270 us bei 20 MHz
-        break;
-      case drv_fatar2:
-        ScanManualsFatar2();   // 250 us bei 20 MHz
-        break;
-      case drv_sr61:
-        ScanManualsSR61();     // 81 us bei 20 MHz
-        break;
-      default:
-        break;
-    }
-    MidiMerge();    // nicht der Rede wert, falls nichts anliegt
+
+    scanKeybeds(0); // Manuale und Pedale scannen, MIDI-Events generieren, etwa 300 us bei 20 MHz Takt
+
     #ifdef LCD_I2C
       if (lcdPresent) {
         handleEncoder(lcd.getEncoderDelta(), false);
         if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
-          handleButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+          handleMenuButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
         }
       }
     #endif
@@ -761,31 +820,13 @@ void loop() {
       // Test für Panel16 Button-Abfrage
       if (panel16Present) {
         if (Timer1RoundRobin == 4) {
-          panel16.updateBlinkLEDs();
+          panel16.updateBlinkLEDs(); // muss regelmäßig aufgerufen werden, damit die Blink-LEDs blinken
         }
         if (Timer1RoundRobin == 8) {
-          uint8_t bnt_number = panel16.getButtonRow(0); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
-          if (bnt_number != 0xFF) {
-            uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
-            panel16.toggleLEDstate(bnt_number);
-            panel16.getButtonRowWaitReleased(0);
-            #ifdef LCD_I2C
-              if (lcdPresent) displayMenuItem(MenuItemActive);
-            #endif
-          }; 
-        }      
+          handlePanel16(0); // aus Zeitgründen in zwei Hälften aufteilen
+        }
         if (Timer1RoundRobin == 12) {
-          uint8_t bnt_number = panel16.getButtonRow(1); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
-          if (bnt_number != 0xFF) {
-            uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-            MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
-            panel16.toggleLEDstate(bnt_number);
-            panel16.getButtonRowWaitReleased(1);
-            #ifdef LCD_I2C
-              if (lcdPresent) displayMenuItem(MenuItemActive);
-            #endif
-          }; 
+          handlePanel16(1); // aus Zeitgründen in zwei Hälften aufteilen
         }
       }
     #endif

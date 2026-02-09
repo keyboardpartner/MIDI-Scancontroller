@@ -31,6 +31,7 @@ void Panel16::init_priv() {
 }
 
 void Panel16::begin() {
+  _waitAction = dummyAction; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
 	setLEDdim(0x28, 0x10); // Dim Settings: bright, dark
   setLEDsWord(0, 0); // Clear lower row
   setLEDsWord(1, 0); // Clear upper row
@@ -91,7 +92,7 @@ void Panel16::setLEDsWord(uint8_t row, uint16_t ledword) {
 }
 
 void Panel16::setLEDstate(uint8_t led, uint8_t ledstate) {
-  // Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright 
+  // Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright
   // Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright
   // Bit 6: led blinking active
   // Bit 7: led active (on or blinking)
@@ -117,7 +118,7 @@ void Panel16::setLEDstate(uint8_t led, uint8_t ledstate) {
     } else {
       uint8_t led_off_state = (ledstate & 0b00110000) >> 4; // Alternative Blink-LED-Zustände oder normaler LED-Zustand
       _LEDsWord[row] |= led_off_state << led_mod8; // Blink-LED-Zustände setzen, auch wenn LED aus ist
-    } 
+    }
   }
   // nur die nötigen Ports aktualisieren
   if (led_mod8 < 8) {
@@ -128,7 +129,7 @@ void Panel16::setLEDstate(uint8_t led, uint8_t ledstate) {
 }
 
 uint8_t Panel16::getLEDstate(uint8_t led) {
-  // Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright 
+  // Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright
   // Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright
   // Bit 6: led blinking active
   // Bit 7: led active (on or blinking)
@@ -216,7 +217,8 @@ uint8_t Panel16::getButtonRowWaitReleased(uint8_t row) {
       last_button = button;
     }
     updateBlinkLEDs(); // LEDs mit aktivem Blinken weiter toggeln
-    delay(10); // Entprellzeit
+    // Callback-Funktion für Panel16, liefert derzeit gedrückten Panel16-Button
+    _waitAction(button);
   } while (button != 0xFF); // Warten bis alle Tasten losgelassen sind
   return last_button;
 }

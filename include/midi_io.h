@@ -212,7 +212,29 @@ void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
     LastRunningStatusSent = cmd_byte;
   }
   Serial.write(cc);  // Controller number
-  Serial.write(value & 0x7F);   // Dynamik
+  Serial.write(value & 0x7F);   // Wert
+}
+
+void MidiSendProgramChange(uint8_t channel, uint8_t value) {
+  // Program Change senden
+  uint8_t cmd_byte = 0xC0 + channel - 1;
+  if (cmd_byte != LastRunningStatusSent) {
+    Serial.write(cmd_byte);
+    LastRunningStatusSent = cmd_byte;
+  }
+  Serial.write(value & 0x7F);   // Programm number
+}
+
+void MidiSendPitchBend(uint8_t channel, int16_t value) {
+  // Pitch Bend senden, Wert -8192..8191 auf 0..16383 mappen
+  uint16_t bend_value = (uint16_t)(value + 8192);
+  uint8_t cmd_byte = 0xE0 + channel - 1;
+  if (cmd_byte != LastRunningStatusSent) {
+    Serial.write(cmd_byte);
+    LastRunningStatusSent = cmd_byte;
+  }
+  Serial.write(bend_value & 0x7F);   // LSB
+  Serial.write((bend_value >> 7) & 0x7F);   // MSB
 }
 
 #endif

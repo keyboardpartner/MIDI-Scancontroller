@@ -35,9 +35,6 @@
 #define MPX_INTEGRATOR_FACTOR 4 // Faktor für die Integration der MPX-Werte, höher = stärker geglättet, aber auch träger
 
 
-typedef void (*actionCallback)(uint8_t inputIndex, uint8_t value);
-static void dummyAction(uint8_t inputIndex, uint8_t value) { }; // In case user callback is not defined!
-
 // Pro MPX-Eingang werden 5 Byte benötigt: integrierter Wert, alter Wert, Timer für Aktivität, CC-Nummer, CC-Kanal
 // RAM kann bei ATmega328P knapp sein, daher hier die Anzahl der MPX-Eingänge auf 16 begrenzt
 
@@ -48,27 +45,31 @@ public:
   void init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR);
   void handleMPX(); // in main loop aufrufen, um MPX-Werte zu lesen und MIDI-CCs zu senden
   void resetMPX();
-  // Callback bei Änderungen
-  actionCallback _changeAction; // Analog Changed action callback
+
+  typedef void (*actionCallback)(uint8_t inputIndex, uint8_t value);
   void setChangeAction(actionCallback action) { _changeAction = action; }
 
-  uint8_t getAnalogValue(uint8_t index) {  
+  uint8_t getAnalogValue(uint8_t index) {
     // aktueller Wert eines analogen Eingangs, 0..127, erst nach einigen handleMPX() gültig, da dort die Werte gelesen und verarbeitet werden
-    return (index < ANLG_INPUTS) ? _analogInputs[index] : 0; 
+    return (index < ANLG_INPUTS) ? _analogInputs[index] : 0;
   }
 
 private:
   void clockMPX();
   void startMPX();
 
+  // Callback bei Änderungen
+  static void dummyAction(uint8_t inputIndex, uint8_t value) { }; // In case user callback is not defined!
+  actionCallback _changeAction; // Analog Changed action callback
+
   uint8_t _analogInputsIntegrated[ANLG_INPUTS]; // Geglättete/integrierte Werte der analogen Eingänge
   uint8_t _analogInputsOld[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge
   uint8_t _analogInputTimers[ANLG_INPUTS]; // Zählt nach Änderung des integrierten Werts auf 0 herunter, um bei längerem Stillstand der Potis die Integration zurückzusetzen
   uint8_t _analogInputs[ANLG_INPUTS]; // Aktuelle Werte der analogen Eingänge, 0..127, werden nach Integration und Mapping auf MIDI-Bereich in handleMPX() aktualisiert
- 
+
   uint8_t _analogMPXinputCount = ANLG_INPUTS; // Anzahl der tatsächlich genutzten analogen Eingänge, 0..ANLG_INPUTS, kann über setMPXinputCount() angepasst werden
-  uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT; 
-  int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR; 
+  uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT;
+  int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR;
   uint8_t _analogInputSelect = 0; // derzeit ausgewählter analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
 };
 
@@ -152,12 +153,12 @@ void MPXpots::handleMPX() {
     }
   }
   while (ADCSRA & (1 << ADSC)); // warte bis Wandlung abgeschlossen
-  // ADC-Rohwert integrieren, um Rauschen zu reduzieren, Integration mit Faktor 4, 
+  // ADC-Rohwert integrieren, um Rauschen zu reduzieren, Integration mit Faktor 4,
   // neuer Wert wird mit 1 gewichtet, alter Wert mit 3 gewichtett, damit schnelle Änderungen trotzdem relativ schnell durchkommen
   int16_t newValue = (int16_t)ADCH;
   newValue =  (newValue + oldValue) / _analogMPXintegrator; // skalierten Wert im Array speichern
   _analogInputsIntegrated[_analogInputSelect] = (uint8_t)newValue;
-  
+
   // Hysterese: MIDI-CC-Update nur bei Änderung des integrierten Werts, um Rauschen zu reduzieren und unnötige MIDI-Updates zu vermeiden
   oldValue = _analogInputsOld[_analogInputSelect];
   if (abs(newValue - oldValue) > 1)  {
@@ -171,7 +172,7 @@ void MPXpots::handleMPX() {
     newValue = (newValue * 77) / 100;
     if (newValue > 127) newValue = 127; // Überlauf verhindern
 
-    // Change Action Callback aufrufen, damit Nutzer eigene Aktionen bei Änderungen definieren kann, 
+    // Change Action Callback aufrufen, damit Nutzer eigene Aktionen bei Änderungen definieren kann,
     // z.B. Anzeige auf LCD aktualisieren oder MIDI-CC senden
     if ((uint8_t)newValue != _analogInputs[_analogInputSelect]) {
       _changeAction(_analogInputSelect, (uint8_t)newValue);
