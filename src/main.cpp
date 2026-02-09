@@ -810,7 +810,7 @@ void loop() {
     #ifdef LCD_I2C
       if (lcdPresent) {
         handleEncoder(lcd.getEncoderDelta(), false);
-        if ((Timer1RoundRobin == 0) && (AnyKeyPressed == 0)) {
+        if (Timer1RoundRobin == 0) {
           handleMenuButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
         }
       }
