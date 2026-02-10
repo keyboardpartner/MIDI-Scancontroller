@@ -282,6 +282,10 @@ void ScanPedal() {
         MidiSendNoteOff(MenuValues[m_pedal_channel], MenuValues[m_pedal_base] + scankey);
       }
     }
+    _SET_SR_CLK;
+    _NOP_DLY;
+    _NOP_DLY;
+    _CLR_SR_CLK;
   }
 }
 
@@ -410,10 +414,10 @@ void ScanManualsSR61() {
       UpperKeyState[scankey] = mk_upr;
       if (mk_upr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_channel], MIDI_BASE_UPR + scankey); // Upper NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey); // Upper NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_upper_channel], MIDI_BASE_UPR + scankey); // Upper NoteOff
+        MidiSendNoteOff(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey); // Upper NoteOff
       }
     }
     mk_lwr = PINB & (1 << SR_LWR); // Make-Kontakt Pedal lesen, active LOW
@@ -424,10 +428,10 @@ void ScanManualsSR61() {
       LowerKeyState[scankey] = mk_lwr;
       if (mk_lwr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_lower_channel], MIDI_BASE_LWR + scankey); // Lower NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey); // Lower NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_lower_channel], MIDI_BASE_LWR + scankey); // Lower NoteOff
+        MidiSendNoteOff(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey); // Lower NoteOff
       }
     }
     _SET_SR_CLK;
