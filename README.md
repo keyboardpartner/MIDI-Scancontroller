@@ -8,7 +8,7 @@ Fast AVR ATmega328 based scan controller with velocity dynamic scanning for Fata
 
 Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 interface boards or DIY equivalents, see schematics in /docs.
 
-I case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
+In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
 Version Info:
  * New approach for velocity table with variable slope:
