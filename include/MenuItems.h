@@ -499,9 +499,6 @@ const int8_t MenuLink[MENU_ITEMCOUNT] = {
 };
 
 
-
-
-
 // ------------------------------------------------------------------------------
 
 const String Msg[] = {"FCK TRMP", "FCK AFD"};
@@ -513,28 +510,17 @@ int8_t MenuItemReturn;   // speichert bei Untermenüs die Rücksprungposition
 MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 
 bool menuInit() {
-  // Initialisiere Menü, setze Start- und Endpunkt und zeige ersten Menüpunkt an
-  MenuStart = 0;
-  MenuEnd = m_end - 1;
-  MenuItemActive = m_upper_channel;
-  MenuItemReturn = m_upper_channel; // Initiale Rücksprungposition auf ersten Menüpunkt setzen
-  Wire.beginTransmission(LCD_I2C_ADDR); // Display I2C-Adresse
-  if (Wire.endTransmission(true) == 0) {
-    // Display gefunden
-    lcd.begin(16, 2);
-    delay(500); // Warte auf Display-Start
+  // Initialisiere Menü, setze Start- und Endpunkt und zeige Version an
+  if (lcd.begin(16, 2)) {
+    MenuStart = 0;
+    MenuEnd = m_end - 1;
+    MenuItemActive = m_upper_channel;
+    MenuItemReturn = m_upper_channel; // Initiale Rücksprungposition auf ersten Menüpunkt setzen
+    // Display gefunden, zeige Startbild
     lcd.setCursor(0, 0);
-    lcd.print("ScanCtrl 0.9");
+    lcd.print(VERSION);
     lcd.setCursor(0, 1);
-    lcd.print("C.Meyer 2026");
-    lcd.createChar(LCD_ARW_UP, lcd.arrowUp);
-    lcd.createChar(LCD_ARW_DN, lcd.arrowDown);
-    lcd.createChar(LCD_ARW_LT, lcd.arrowLeft);
-    lcd.createChar(LCD_ARW_LT_GREY, lcd.arrowLeftGrey);
-    lcd.createChar(LCD_ARW_UD, lcd.arrowUpDown);
-    lcd.createChar(LCD_ARW_UD_GREY, lcd.arrowUpDownGrey);
-    lcd.createChar(LCD_ARW_RT, lcd.arrowRight);
-    lcd.createChar(LCD_ARW_RT_GREY, lcd.arrowRightGrey);
+    lcd.print(F("C.Meyer 2026"));
     return true;
   } else {
     // Kein Display gefunden
@@ -577,7 +563,7 @@ void displayMenuValue(uint8_t itemIndex) {
   }
   if (item_value < 0) {
     lcd.setCursor(5, 1);
-    lcd.print("(unused)"); // negative Werte sind unbenutzt, entsprechend kennzeichnen
+    lcd.print(F("(unused)")); // negative Werte sind unbenutzt, entsprechend kennzeichnen
   }
 }
 
@@ -592,12 +578,12 @@ void displayMenuItem(uint8_t itemIndex) {
   int8_t menu_link = MenuLink[MenuItemActive];
   if (menu_link < 0) {
     lcd.setCursor(0, 1);
-    lcd.print("Exit ");
+    lcd.print(F("Exit "));
     lcd.write(LCD_ARW_LT); // Untermenü-Ende mit Pfeil nach links markieren
     lcd.clearEOL(); // Lösche evtl. alte Zeichen
   } else if (menu_link > 0) {
     lcd.setCursor(0, 1);
-    lcd.print("Settings ");
+    lcd.print(F("Settings "));
     lcd.write(LCD_ARW_RT); // Untermenü mit Pfeil nach rechts markieren
     lcd.clearEOL(); // Lösche evtl. alte Zeichen
   } else {

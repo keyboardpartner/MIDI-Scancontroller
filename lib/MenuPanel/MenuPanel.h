@@ -74,6 +74,7 @@
 #define LCD_BTNUP_BIT 0x01
 #define LCD_BTNDN_BIT 0x02
 
+// Custem characters for menu navigation
 #define LCD_ARW_UP char(0)
 #define LCD_ARW_DN char(1)
 #define LCD_ARW_DN char(1)
@@ -103,7 +104,7 @@ public:
 
 
   MenuPanel(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
-  void begin(uint8_t cols, uint8_t rows); // , uint8_t charsize = LCD_5x8DOTS );
+  bool begin(uint8_t cols, uint8_t rows); // returns TRUE if LCD found, otherwise FALSE
   void clear();
   void clearEOL();
   void home();

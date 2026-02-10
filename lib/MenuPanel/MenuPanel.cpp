@@ -60,8 +60,12 @@ void MenuPanel::init_priv()
 	begin(_cols, _rows);
 }
 
-void MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
+bool MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
 	delay(50); // Wait for >40ms after power rises above 2.7V
+  Wire.beginTransmission(_Addr); // Display I2C-Adresse
+  if (Wire.endTransmission(true) != 0) {
+    return false; // Kein Display gefunden
+  }
 	uint8_t data_[4];
 	if (lines > 1) {
 		_displayfunction = LCD_8BITMODE | LCD_2LINE;
@@ -95,12 +99,20 @@ void MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
 	Wire.write(data_, 3);   // 3 Bytes
 	Wire.endTransmission();
 
-	delay(1);
-
 	// SEE PAGE 45/46 FOR INITIALIZATION SPECIFICATION!
 	// according to datasheet, we need at least 40ms after power rises above 2.7V
 	// before sending commands. Arduino can turn on way before 4.5V so we'll wait 50
 	// Now we pulled both RS and R/W low to begin commands
+
+	delay(1);
+  createChar(LCD_ARW_UP, arrowUp);
+	createChar(LCD_ARW_DN, arrowDown);
+	createChar(LCD_ARW_LT, arrowLeft);
+	createChar(LCD_ARW_LT_GREY, arrowLeftGrey);
+	createChar(LCD_ARW_UD, arrowUpDown);
+	createChar(LCD_ARW_UD_GREY, arrowUpDownGrey);
+	createChar(LCD_ARW_RT, arrowRight);
+	createChar(LCD_ARW_RT_GREY, arrowRightGrey);
 
 	// set # lines, font size, etc.
 	command(LCD_FUNCTIONSET | _displayfunction); // 0x28
@@ -114,6 +126,7 @@ void MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
 	clear();
 	// Initialize to default text direction (for roman languages)
 	home();
+	return(true);
 }
 
 // #############################################################################
@@ -130,6 +143,7 @@ void MenuPanel::begin(uint8_t cols, uint8_t lines) {	// , uint8_t dotsize) {
 
 
 /********** high level commands, for the user! */
+
 void MenuPanel::clear(){
 	command(LCD_CLEARDISPLAY);// clear display, set cursor position to zero
 	delay(2);  // this command takes a long time!
@@ -274,7 +288,7 @@ void MenuPanel::send(uint8_t value, uint8_t mode) {
 uint8_t MenuPanel::getButtons() {
 	uint8_t data_byte;
   Wire.beginTransmission(_Addr);
-	Wire.write(0x01);   // 1 Bytes
+	Wire.write(0x01);   // 1 Byte, Port 1 lesen
   Wire.endTransmission();
   Wire.requestFrom(_Addr, (uint8_t)1);
   data_byte = Wire.read();

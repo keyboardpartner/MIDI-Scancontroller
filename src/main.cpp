@@ -26,6 +26,8 @@
 #define ANLG_MPX
 #define PANEL16
 
+#define VERSION "ScanCtrl 0.9"
+
 #define LED_PIN 2 // Pin für LED
 
 // FATAR 1-61 Scan-Controller NEU Pinbelegung
@@ -120,7 +122,6 @@ bool panel16Present = false;
   #include "MpxPots.h"
   MPXpots mpxPots(ANLG_INPUTS, MPX_ACTIVE_TIMEOUT, MPX_INTEGRATOR_FACTOR);
 #endif
-
 
 
 // #############################################################################
@@ -436,6 +437,27 @@ void ScanManualsSR61() {
   }
 }
 
+// ------------------------------------------------------------------------------
+
+void scanKeybeds() {
+  // Alle Manuale und Pedale scannen, MIDI-Events senden, MIDI-Merge durchführen
+  ScanPedal();    // 25 us bei 20 MHz
+  switch (MenuValues[m_driver_type]) {
+    case drv_fatar1:
+      ScanManualsFatar1_61(); // 270 us bei 20 MHz
+      break;
+    case drv_fatar2:
+      ScanManualsFatar2();   // 250 us bei 20 MHz
+      break;
+    case drv_sr61:
+      ScanManualsSR61();     // 81 us bei 20 MHz
+      break;
+    default:
+      break;
+  }
+  MidiMerge();    // nicht der Rede wert, falls nichts anliegt
+}
+
 // #############################################################################
 
 void configurePorts(uint8_t driverType) {
@@ -492,24 +514,22 @@ void configurePorts(uint8_t driverType) {
 
 // #############################################################################
 //
-//     #     # ######  #     #      #    #     # #        #####
-//     ##   ## #     #  #   #      # #   ##    # #       #     #
-//     # # # # #     #   # #      #   #  # #   # #       #
-//     #  #  # ######     #      #     # #  #  # #       #  ####
-//     #     # #         # #     ####### #   # # #       #     #
-//     #     # #        #   #    #     # #    ## #       #     #
-//     #     # #       #     #   #     # #     # #######  #####
+//      #####     #    #       #       ######     #     #####  #    #  #####
+//     #     #   # #   #       #       #     #   # #   #     # #   #  #     #
+//     #        #   #  #       #       #     #  #   #  #       #  #   #
+//     #       #     # #       #       ######  #     # #       ###     #####
+//     #       ####### #       #       #     # ####### #       #  #         #
+//     #     # #     # #       #       #     # #     # #     # #   #  #     #
+//      #####  #     # ####### ####### ######  #     #  #####  #    #  #####
 //
 // #############################################################################
 
+#ifdef ANLG_MPX
 // #############################################################################
 // Callback für MPX-Eingänge, hier können die MIDI-CC-Werte gesendet werden
 // Muss in setup() mit "mpxPots.setChangeAction(onMPXChange)" registriert werden
 // #############################################################################
 
-#ifdef ANLG_MPX
-
-// Callback-Funktion für Änderungen der MPX-gestützten analogen Eingänge
 void onMPXChange(uint8_t inputIndex, uint8_t value) {
   if (inputIndex == MenuValues[m_pitchwheel_pot]) {
     // Pot ist Pitchwheel, sendet Pitch Bend Change, Wert 0..127 wird auf -8192..8191 gemappt
@@ -526,8 +546,21 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
     }
   }
 }
-
 #endif
+
+#ifdef PANEL16
+// #############################################################################
+// Callback-Funktion für Panel16, liefert derzeit gedrückten Button
+// Wird von der Panel16-Library aufgerufen, während ein Panel16-Button gedrückt
+// und auf Loslassen gewartet wird. Dadurch können die Manuale weiter
+// gescannt werden, ohne die Scan-Funktion zu blockieren
+// #############################################################################
+
+void onPanel16releaseWait(uint8_t button) {
+  scanKeybeds();
+}
+#endif
+
 
 // #############################################################################
 //
@@ -654,6 +687,8 @@ void handleMenuButtons() {
 
 #endif
 
+// ------------------------------------------------------------------------------
+
 #ifdef PANEL16
 
 void handlePanel16(uint8_t row) {
@@ -705,27 +740,6 @@ void handlePanel16(uint8_t row) {
 //
 // #############################################################################
 
-void scanKeybeds(uint8_t button) {
-  // ist gleichzeitig Callback-Funktion für Panel16, die liefert derzeit gedrückten Button
-  // Wird von der Panel16-Library aufgerufen, während ein Panel16-Button gedrückt und auf Loslassen gewartet wird
-  // Dadurch können die Manuale weiter gescannt werden, ohne die Scan-Funktion zu blockieren
-  ScanPedal();    // 25 us bei 20 MHz
-  switch (MenuValues[m_driver_type]) {
-    case drv_fatar1:
-      ScanManualsFatar1_61(); // 270 us bei 20 MHz
-      break;
-    case drv_fatar2:
-      ScanManualsFatar2();   // 250 us bei 20 MHz
-      break;
-    case drv_sr61:
-      ScanManualsSR61();     // 81 us bei 20 MHz
-      break;
-    default:
-      break;
-  }
-  MidiMerge();    // nicht der Rede wert, falls nichts anliegt
-}
-
 void timer1SemaphoreISR() {
   // Timer1 Interrupt Service Routine, setzt Semaphore für Timer-basiertes Ausführen
   // der Scan- und MIDI-Merge-Funktionen im Hauptprogramm
@@ -733,6 +747,8 @@ void timer1SemaphoreISR() {
   Timer1RoundRobin++;
   Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten
 }
+
+// ------------------------------------------------------------------------------
 
 void setup() {
   Serial.begin(31250);
@@ -776,7 +792,7 @@ void setup() {
   blinkLED(3);
 
   #ifdef PANEL16
-     Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
+    Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
     if (Wire.endTransmission(true) == 0) {
       panel16Present = true;
       panel16.begin();
@@ -788,7 +804,7 @@ void setup() {
       panel16.setLEDstate(4, 0b10001001); // einzelne LED in lower row, direkte Bitmask, entspricht hilight, alt_bright, off_dark, blink_ena
       panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in upper row
       panel16.setLEDstate(13, panel16.led_dark | panel16.led_btn_on); // einzelne LED in upper row
-      panel16.setWaitCallback(scanKeybeds); // Callback-Funktion für Button-Handling registrieren
+      panel16.setWaitCallback(onPanel16releaseWait); // Callback-Funktion für Button-Handling registrieren
     }
   #endif
 
@@ -805,7 +821,7 @@ void loop() {
     // wird alle 500µs neu gesetzt durch Timer1 ISR, hier wird die eigentliche Arbeit erledigt
     Timer1Semaphore--;
 
-    scanKeybeds(0); // Manuale und Pedale scannen, MIDI-Events generieren, etwa 300 us bei 20 MHz Takt
+    scanKeybeds(); // Manuale und Pedale scannen, MIDI-Events generieren, etwa 300 us bei 20 MHz Takt
 
     #ifdef LCD_I2C
       if (lcdPresent) {
@@ -820,7 +836,7 @@ void loop() {
       // Test für Panel16 Button-Abfrage
       if (panel16Present) {
         if (Timer1RoundRobin == 4) {
-          panel16.updateBlinkLEDs(); // muss regelmäßig aufgerufen werden, damit die Blink-LEDs blinken
+          panel16.updateBlinkLEDs(); // muss regelmäßig für blinkende LEDs aufgerufen werden
         }
         if (Timer1RoundRobin == 8) {
           handlePanel16(0); // aus Zeitgründen in zwei Hälften aufteilen
