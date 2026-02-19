@@ -10,7 +10,7 @@
 //
 // #############################################################################
 */
-// MIDI Controller for FATAR keybeds, C. Meyer 1/2026
+// MIDI Controller for FATAR, SR 4014 and PULSE 6105WF keybeds, C. Meyer 1/2026
 // Banner Logos from
 // https://patorjk.com/software/taag/#p=display&f=Banner&t=MAIN&x=cppComment&v=4&h=2&w=80&we=false
 // 20 MHz Bootloaders:
@@ -20,73 +20,15 @@
 #include <EEPROM.h>
 #include <TimerOne.h>
 #include "midi_io.h"
+#include "global_vars.h"
+#include "menu_system.h"
 
 // Define used modules here, comment out unused modules to save program memory
 #define LCD_I2C
 #define ANLG_MPX
 #define PANEL16
 
-#define VERSION "ScanCtrl 0.9"
 
-#define LED_PIN 2 // Pin für LED
-
-// FATAR 1-61 Scan-Controller NEU Pinbelegung
-#define FT_TDRV_A   PORTB0
-#define FT_TDRV_B   PORTB1
-#define FT_TDRV_C   PORTB2
-#define FT_CLK   PORTD3
-#define FT_LOAD  PORTD4
-// #define FT_KBDPOL PORTD5
-#define FT_TEST  PORTD5
-#define FT_UPR   PIND6
-#define FT_LWR   PIND7
-// Fast port bit manipulation macros
-#define _SET_FT_CLK   asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
-#define _CLR_FT_CLK   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
-#define _SET_FT_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_LOAD))
-#define _CLR_FT_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_LOAD))
-
-// FATAR 2 Scan-Controller ALT Pinbelegung
-#define FT_SENSE_INC   PORTB0
-#define FT_SENSE_RST   PORTB1
-#define BR_UPR   PORTB2
-#define MK_UPR   PORTD3
-#define FT_TDRV_INC  PORTD4
-#define FT_TDRV_RST  PORTD5
-#define BR_LWR   PIND6
-#define MK_LWR   PIND7
-// Fast port bit manipulation macros
-#define _SET_FT_SENSE_INC  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
-#define _CLR_FT_SENSE_INC  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
-#define _SET_FT_SENSE_RST  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_RST))
-#define _CLR_FT_SENSE_RST  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_RST))
-#define _SET_FT_TDRV_INC   asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_INC))
-#define _CLR_FT_TDRV_INC   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_INC))
-#define _SET_FT_TDRV_RST   asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_RST))
-#define _CLR_FT_TDRV_RST   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TDRV_RST))
-
-// BASS und SR61 4014 Scan-Controller Pinbelegung
-#define SR_CLK   PORTB0 // auf Prototyp V01 ändern!
-#define SR_LOAD  PORTB1 // auf Prototyp V01 ändern!
-#define SR_UPR   PINB3
-#define SR_LWR   PINB4
-#define SR_PED   PINB5
-// Fast port bit manipulation Macros
-#define _SET_SR_CLK   asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_CLK))
-#define _CLR_SR_CLK   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_CLK))
-#define _SET_SR_LOAD  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
-#define _CLR_SR_LOAD  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (SR_LOAD))
-
-#define _NOP_DLY asm volatile ("nop")
-
-#define KEYS_PER_GROUP 8
-#define KEYS (KEYS_PER_GROUP * 8) // 8 Treibergruppen à 8 Tasten = 64 Tasten pro Manual
-
-#define TIMER_MAX 255
-#define TIMER_DIV ((TIMER_MAX * 2) + MIDI_MINDYN)
-
-#define PEDALKEYS 25
-#define MANUALKEYS 61
 
 
 uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
@@ -100,12 +42,6 @@ uint8_t LowerKeyTimer[KEYS]; // Timer für jede Taste
 volatile uint8_t Timer1Semaphore = 0;
 volatile uint8_t Timer1RoundRobin = 0;
 
-
-#ifdef LCD_I2C
-  // Für LCD mit I2C-Interface
-  #include "MenuPanel.h"
-  #include "MenuItems.h"
-#endif
 bool lcdPresent = false;
 
 #ifdef PANEL16
@@ -122,6 +58,7 @@ bool panel16Present = false;
   #include "MpxPots.h"
   MPXpots mpxPots(ANLG_INPUTS, MPX_ACTIVE_TIMEOUT, MPX_INTEGRATOR_FACTOR);
 #endif
+
 
 
 // #############################################################################
@@ -154,10 +91,10 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       // Make-Kontakt geschlossen, Taste voll gedrückt
       // MIDI senden und Zustand auf t_pressed setzen
       UpperKeyState[scankey] = t_pressed;
-      uint16_t tval = UpperKeyTimer[scankey] + MenuValues[m_maxdynadj];
+      uint16_t tval = UpperKeyTimer[scankey] + MenuValues[MENU_MAX_DYNADJ];
       if (tval > 255) tval = 255;
       uint8_t mididyn = TimeToDyn[tval];
-      MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
+      MidiSendNoteOn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
     } else if (br) {
       // Break-Kontakt noch geschlossen, Timer dekrementieren
       uint8_t tval = UpperKeyTimer[scankey];
@@ -167,7 +104,7 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       } else {
         // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
         UpperKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey, MenuValues[m_mindyn]);  // sende MIDI NoteOn mit Dynamikwert
+        MidiSendNoteOn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey, MenuValues[MENU_MIN_DYN]);  // sende MIDI NoteOn mit Dynamikwert
       }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
@@ -184,7 +121,7 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
       UpperKeyState[scankey] = t_idle;
-      MidiSendNoteOff(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey);// sende MIDI NoteOFF
+      MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey);// sende MIDI NoteOFF
     };
     break;
   }
@@ -207,10 +144,10 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       // Make-Kontakt geschlossen, Taste voll gedrückt
       // MIDI senden und Zustand auf t_pressed setzen
       LowerKeyState[scankey] = t_pressed;
-      uint16_t tval = LowerKeyTimer[scankey] + MenuValues[m_maxdynadj];
+      uint16_t tval = LowerKeyTimer[scankey] + MenuValues[MENU_MAX_DYNADJ];
       if (tval > 255) tval = 255;
       uint8_t mididyn = TimeToDyn[tval];
-      MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
+      MidiSendNoteOn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey, mididyn);  // sende MIDI NoteOn mit Dynamikwert
     } else if (br) {
       // Break-Kontakt noch geschlossen, Timer dekrementieren
       uint8_t tval = LowerKeyTimer[scankey];
@@ -220,7 +157,7 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       } else {
         // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
         LowerKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey, MenuValues[m_mindyn]);  // sende MIDI NoteOn mit Dynamikwert
+        MidiSendNoteOn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey, MenuValues[MENU_MIN_DYN]);  // sende MIDI NoteOn mit Dynamikwert
      }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
@@ -237,7 +174,7 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
       LowerKeyState[scankey] = t_idle;
-      MidiSendNoteOff(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey);// sende MIDI NoteOFF
+      MidiSendNoteOff(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey);// sende MIDI NoteOFF
     };
     break;
   }
@@ -276,10 +213,10 @@ void ScanPedal() {
       PedalContactState[scankey] = mk_ped;
       if (mk_ped == 0) {
         // Pedal gedrückt, NoteOn mit fester Dynamik
-        MidiSendNoteOnNoDyn(MenuValues[m_pedal_channel], MenuValues[m_pedal_base] + scankey);
+        MidiSendNoteOnNoDyn(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_pedal_channel], MenuValues[m_pedal_base] + scankey);
+        MidiSendNoteOff(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
       }
     }
     _SET_SR_CLK;
@@ -306,20 +243,28 @@ void ScanManualsFatar1_61() {
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
   AnyKeyPressed = false;
-  uint8_t scankey = 0; // aktuelle Taste
   uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
   uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
   PORTD = portd_idle;  // zurück zu idle
-  for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
-    PORTB = (PORTB & B11111000) | tdrive; // nur unterste 3 Bits, als T-Drive an Decoder
-    delayMicroseconds(1); // kurze Pause, Settle time
+  int8_t scankey = KEYS - scanParams.keyOffset; // aktuelle Taste
+  for (uint8_t tcount = 0; tcount < 8; tcount++) {
+    PORTB = (PORTB & B11111000) | tcount; // nur unterste 3 Bits, als T-Drive an Decoder
+    // delayMicroseconds(1); // kurze Pause, Settle time
     // SRs einer Gruppe laden, an FT_UPR und FT_LWR steht danach das erste Bit an
-    _CLR_FT_LOAD; // FT_LOAD auf LOW
-    _SET_FT_CLK;  // FT_CLK auf HIGH
-    PORTD = portd_idle;  // zurück zu idle
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
-      if (pulsecount != 0) {
-        // nur nächstes Bit
+      if (pulsecount == 0) {
+        // erstes Bit
+        _NOP_DLY;
+        _NOP_DLY;
+        _CLR_FT_LOAD; // FT_LOAD auf LOW
+        _SET_FT_CLK;  // FT_CLK auf HIGH
+        PORTD = portd_idle;  // zurück zu idle
+        for (int8_t i = 0; i < scanParams.prePulses; i++) {
+          _SET_FT_CLK;  // FT_CLK auf HIGH
+          _CLR_FT_CLK;  // FT_CLK auf LOW
+        }
+      } else {
+        // erstes Bit, da FT_LOAD auf LOW, hier ist noch keine Taktung nötig
         _SET_FT_CLK;  // FT_CLK auf HIGH
         _CLR_FT_CLK;  // FT_CLK auf LOW
       }
@@ -414,10 +359,10 @@ void ScanManualsSR61() {
       UpperKeyState[scankey] = mk_upr;
       if (mk_upr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey); // Upper NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey); // Upper NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_upper_channel], MenuValues[m_upper_base] + scankey); // Upper NoteOff
+        MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey); // Upper NoteOff
       }
     }
     mk_lwr = PINB & (1 << SR_LWR); // Make-Kontakt Pedal lesen, active LOW
@@ -428,10 +373,10 @@ void ScanManualsSR61() {
       LowerKeyState[scankey] = mk_lwr;
       if (mk_lwr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey); // Lower NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey); // Lower NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_lower_channel], MenuValues[m_lower_base] + scankey); // Lower NoteOff
+        MidiSendNoteOff(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey); // Lower NoteOff
       }
     }
     _SET_SR_CLK;
@@ -446,7 +391,7 @@ void ScanManualsSR61() {
 void scanKeybeds() {
   // Alle Manuale und Pedale scannen, MIDI-Events senden, MIDI-Merge durchführen
   ScanPedal();    // 25 us bei 20 MHz
-  switch (MenuValues[m_driver_type]) {
+  switch (MenuValues[MENU_KBD_DRIVER]) {
     case drv_fatar1:
       ScanManualsFatar1_61(); // 270 us bei 20 MHz
       break;
@@ -455,6 +400,9 @@ void scanKeybeds() {
       break;
     case drv_sr61:
       ScanManualsSR61();     // 81 us bei 20 MHz
+      break;
+    case drv_pulse6105:
+      ScanManualsFatar1_61(); // 270 us bei 20 MHz
       break;
     default:
       break;
@@ -479,6 +427,8 @@ void configurePorts(uint8_t driverType) {
         UpperKeyState[i] = t_idle;
         LowerKeyState[i] = t_idle;
       }
+      scanParams.prePulses = 0; 
+      scanParams.keyOffset = 0; 
       break;
     case drv_fatar2:
       // FATAR Scan Controller 2
@@ -491,6 +441,22 @@ void configurePorts(uint8_t driverType) {
         UpperKeyState[i] = t_idle;
         LowerKeyState[i] = t_idle;
       }
+      scanParams.prePulses = 0; 
+      scanParams.keyOffset = 0; 
+      break;
+    case drv_pulse6105:
+      // Pulse 6105WF Scan Controller
+      DDRB =  B00000111; // PB0..PB2 als Ausgänge
+      PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
+      DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
+      PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
+      // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
+      for (uint8_t i = 0; i < KEYS; i++) {
+        UpperKeyState[i] = t_idle;
+        LowerKeyState[i] = t_idle;
+      }
+      scanParams.prePulses = 6; 
+      scanParams.keyOffset = 3; 
       break;
     case drv_sr61:
     default:
@@ -504,6 +470,8 @@ void configurePorts(uint8_t driverType) {
         UpperKeyState[i] = (1 << SR_UPR);
         LowerKeyState[i] = (1 << SR_LWR);
       }
+      scanParams.prePulses = 0; 
+      scanParams.keyOffset = 0; 
   }
   for (uint8_t i = 0; i < KEYS; i++) {
     UpperKeyTimer[i] = 255;
@@ -515,6 +483,15 @@ void configurePorts(uint8_t driverType) {
   }
 }
 
+void setKbdDriver() {
+  // Hier wird die Portkonfiguration je nach ausgewähltem Treiber gesetzt
+  configurePorts(MenuValues[MENU_KBD_DRIVER]);
+}
+
+void setDynSlope() {
+  // Hier wird die Portkonfiguration je nach ausgewähltem Treiber gesetzt
+  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOOPE]);
+}
 
 // #############################################################################
 //
@@ -535,18 +512,18 @@ void configurePorts(uint8_t driverType) {
 // #############################################################################
 
 void onMPXChange(uint8_t inputIndex, uint8_t value) {
-  if (inputIndex == MenuValues[m_pitchwheel_pot]) {
+  if (inputIndex == MenuValues[m_pitchwheel]) {
     // Pot ist Pitchwheel, sendet Pitch Bend Change, Wert 0..127 wird auf -8192..8191 gemappt
     int16_t pitch_value = ((int16_t)value - 64) * 128; // Wert von 0..127 auf -8192..8191 mappen
-    MidiSendPitchBend(MenuValues[m_upper_channel], pitch_value);
-  } else if (inputIndex == MenuValues[m_modulation_pot]) {
+    MidiSendPitchBend(MenuValues[m_upper_ch], pitch_value);
+  } else if (inputIndex == MenuValues[m_mod_pot]) {
     // Pot ist Modulation, sendet Modulation Wheel CC, Wert 0..127 direkt senden
-    MidiSendController(MenuValues[m_upper_channel], 1, value);
+    MidiSendController(MenuValues[m_upper_ch], 1, value);
   } else {
     // andere Potentiometer senden MIDI CC, Kanal und CC-Nummer aus MenuValues, Wert 0..127 direkt senden
     // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
-    if (MenuValues[m_CC1 + inputIndex] >= 0) {
-      MidiSendController(MenuValues[m_upper_channel], MenuValues[m_CC1 + inputIndex], value); // Volume Upper
+    if (MenuValues[10 + inputIndex] >= 0) {
+      MidiSendController(MenuValues[m_upper_ch], MenuValues[10 + inputIndex], value); // Volume Upper
     }
   }
 }
@@ -560,11 +537,20 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
 // gescannt werden, ohne die Scan-Funktion zu blockieren
 // #############################################################################
 
-void onPanel16releaseWait(uint8_t button) {
+void onPanel16releaseWait() {
   scanKeybeds();
 }
 #endif
 
+void onMenuButton(uint8_t button) {
+  // Callback-Funktion für MenuPanel-Button, liefert gedrückten Button
+  handleMenuButtons(button);
+}
+
+void onMenuEncoder(int16_t delta) {
+  // Callback-Funktion für MenuPanel-Encoder, liefert Bewegungsdelta
+  handleMenuEncoderChange(delta);
+}
 
 // #############################################################################
 //
@@ -589,108 +575,6 @@ void blinkLED(uint8_t times) {
   }
 }
 
-#ifdef LCD_I2C
-
-void handleEncoder(int16_t encoderDelta, bool forceDisplay) {
-  // Menü-Handling bei Encoder-Änderungen: Wert ändern,
-  // bei Änderung des Treibertyps Ports neu konfigurieren, Dynamiktabelle neu erstellen
-  if (MenuLink[MenuItemActive] != 0) return; // im Untermenü-Link, Encoder hat keine Funktion
-  if ((encoderDelta != 0) || forceDisplay) {
-    // Encoder hat sich bewegt
-    int8_t oldValue = MenuValues[MenuItemActive];
-    if (oldValue + encoderDelta < MenuValueMin[MenuItemActive]) {
-      MenuValues[MenuItemActive] = MenuValueMin[MenuItemActive]; // Unterlauf verhindern
-    } else if (oldValue + encoderDelta > MenuValueMax[MenuItemActive]) {
-      MenuValues[MenuItemActive] = MenuValueMax[MenuItemActive]; // Maximalwert
-    } else {
-      MenuValues[MenuItemActive] = oldValue + encoderDelta;
-    }
-    displayMenuValue(MenuItemActive);
-    if (MenuItemActive == m_driver_type) {
-      // PortD neu konfigurieren
-      configurePorts(MenuValues[m_driver_type]);
-      if (MenuValues[m_driver_type] >= drv_fatar1) {
-        Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
-      } else {
-        Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
-      }
-    }
-    if ((MenuItemActive == m_mindyn ) || (MenuItemActive == m_slope)) {
-      CreateDynTable(MenuValues[m_mindyn], MenuValues[m_slope]);
-    }
-  }
-}
-
-void handleMenuButtons() {
-  // Menü-Handling bei Button-Änderungen: Menupunkt wechseln oder Wert in EEPROM speichern
-  uint8_t buttons = lcd.getButtons(); // benötigt etwa 130 µs (inkl. I2C Overhead) bei 400 kHz
-  int8_t menu_link = MenuLink[MenuItemActive];
-
-  if (buttons != 0) {
-    if (buttons & LCD_BTNUP_MASK) {
-      // Up-Taste mit Autorepeat
-      uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
-      do {
-        if (MenuItemActive > MenuStart) {
-          MenuItemActive--;
-        } else {
-          MenuItemActive = MenuEnd; // wrap around
-        }
-        displayMenuItem(MenuItemActive);
-        buttons = lcd.getButtonsWaitReleased(timeout); // Warte bis losgelassen
-        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
-      } while (buttons);
-    }
-
-    if (buttons & LCD_BTNDN_MASK) {
-      // Down-Taste mit Autorepeat
-      uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
-      do {
-       if (MenuItemActive < MenuEnd) {
-          MenuItemActive++;
-        } else {
-          MenuItemActive = MenuStart; // wrap around
-        }
-        displayMenuItem(MenuItemActive);
-        buttons = lcd.getButtonsWaitReleased(timeout); // Warte bis losgelassen
-        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
-      } while (buttons);
-    }
-
-    if (buttons & LCD_BTNENTER_MASK) {
-      // Enter-Taste, Wert in EEPROM speichern oder Submenu aufrufen
-      if (menu_link < 0) {
-        // Link zurück zum Hauptmenü, wechsle zurück
-        MenuItemActive = MenuItemReturn; // Link ist negativ, also zurück zum Hauptmenü
-        MenuStart = 0;
-        MenuEnd = m_end - 1;
-        displayMenuItem(MenuItemActive);
-      } else if (menu_link > 0) {
-        // Link zu Untermenü, wechsle zu diesem
-        MenuItemReturn = MenuItemActive; // speichere Rücksprungposition
-        MenuItemActive = menu_link;
-        displayMenuItem(MenuItemActive);
-        // Untermenü, finde Start- und Endindex der Menupunkte
-        MenuStart = menu_link;
-        for (MenuEnd = menu_link; MenuEnd < MENU_ITEMCOUNT; MenuEnd++) {
-          if (MenuLink[MenuEnd] < 0) {
-            break; // Ende des Untermenüs erreicht
-          }
-        }
-      } else {
-        // Kein Link, speichere Wert im EEPROM
-        EEPROM.update(MenuItemActive + EEPROM_MENUDEFAULTS, MenuValues[MenuItemActive]);
-        displayMenuItem(MenuItemActive);
-        // Kurzes Blinken als Bestätigung
-        blinkLED(1);
-      }
-      lcd.getButtonsWaitReleased(0); // Warte bis losgelassen
-    }
-  }
-}
-
-#endif
-
 // ------------------------------------------------------------------------------
 
 #ifdef PANEL16
@@ -700,36 +584,35 @@ void handlePanel16(uint8_t row) {
   uint8_t bnt_number = panel16.getButtonRow(row); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
   if (bnt_number != 0xFF) {
     uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-    switch (MenuValues[m_btnmode1 + bnt_number]) {
+    switch (MenuValues[MENU_BTN_MODE + bnt_number]) {
       case btnmode_send_cc_val:
         // Button Mode 0 = Toggle, sendet MIDI-CC mit 127 bei ON und 0 bei OFF
-        MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], btn_onoff);
+        MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number], btn_onoff);
         panel16.toggleLEDstate(bnt_number);
         break;
       case btnmode_send_cc_evt:
         // Button Mode 1 = Event, sendet immer MIDI-CC mit 127 bei ON und bei OFF
-        MidiSendController(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number], 127);
+        MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number], 127);
         break;
       case btnmode_send_prg_ch:
         // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendProgramChange(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
+        MidiSendProgramChange(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
         break;
       case btnmode_send_note:
         // Button Mode 3 = Note On/Off, sendet MIDI Note On mit Velocity 64 bei ON und Note Off bei OFF, Note Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
-        panel16.getButtonRowWaitReleased(0);
-        MidiSendNoteOff(MenuValues[m_upper_channel], MenuValues[m_btn1 + bnt_number]);
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
+        panel16.waitReleased();
+        MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
         break;
     }
-    panel16.getButtonRowWaitReleased(0);
+    panel16.waitReleased();
     #ifdef LCD_I2C
-      if (lcdPresent) displayMenuItem(MenuItemActive);
+      if (lcdPresent) displayMenuItem();
     #endif
   };
 }
 
 #endif
-
 
 
 // #############################################################################
@@ -750,6 +633,10 @@ void timer1SemaphoreISR() {
   Timer1Semaphore++;
   Timer1RoundRobin++;
   Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten
+  if (lcdPresent) {
+    // Timer-Interrupt erledigt auch das Scannen des MenuPanel-Encoders
+    lcd.encoderISR();
+  }
 }
 
 // ------------------------------------------------------------------------------
@@ -759,29 +646,29 @@ void setup() {
   // set led port as output
   pinMode(LED_PIN, OUTPUT);
   // Defaults aus EEPROM lesen
-  for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {
-    uint8_t eep_val = EEPROM.read(i + EEPROM_MENUDEFAULTS);
-    if ((eep_val < MenuValueMin[i]) || (eep_val > MenuValueMax[i])) {
+  initMenuValues();
+  if (EEPROM.read(EEPROM_VERSION_IDX) != FIRMWARE_VERSION) {
+    for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {   
       // ungültiger Wert, auf default zurücksetzen
-      eep_val = MenuValues[i]; // sind noch Default-Werte aus Menü-Definition
-      EEPROM.update(i + EEPROM_MENUDEFAULTS, eep_val);
+      int8_t eep_val = MenuDefaults[i]; 
+      EEPROM.update(i + EEPROM_MENUDEF_IDX, eep_val);
+      MenuValues[i] = eep_val;
     }
-    MenuValues[i] = eep_val;
   }
-  configurePorts(MenuValues[m_driver_type]); // Port Initialisierung je nach Treibertyp
-  CreateDynTable(MenuValues[m_mindyn], MenuValues[m_slope]);
+  configurePorts(MenuValues[MENU_KBD_DRIVER]); // Port Initialisierung je nach Treibertyp
+  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOOPE]);
 
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
-  if (MenuValues[m_driver_type] >= drv_fatar1) {
+  if (MenuValues[MENU_KBD_DRIVER] >= drv_fatar1) {
     Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
   } else {
     Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
   }
   Timer1.initialize(500); // Timer1 auf 500 us einstellen
 
-  MidiSendController(MenuValues[m_upper_channel], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_channel], 123, 0); // All Notes Off on Channel 2
-  MidiSendController(MenuValues[m_pedal_channel], 123, 0); // All Notes Off on Channel 3
+  MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
+  MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
 
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
@@ -789,7 +676,13 @@ void setup() {
   #ifdef LCD_I2C
     if (menuInit()) {
       lcdPresent = true;
-      displayMenuItem(MenuItemActive); // Hauptmenü anzeigen
+      MenuItemActive = 0; // erstes Menü-Item aktivieren
+      getMenuEntry(MenuItemActive);
+      displayMenuItem(); // Hauptmenü anzeigen
+      // Callback-Funktion für MenuPanel-Button-Handling registrieren
+      lcd.setButtonCallback(onMenuButton); 
+      // Callback-Funktion für MenuPanel-Encoder-Handling registrieren
+      lcd.setEncoderCallback(onMenuEncoder);
     }
   #endif
 
@@ -829,9 +722,9 @@ void loop() {
 
     #ifdef LCD_I2C
       if (lcdPresent) {
-        handleEncoder(lcd.getEncoderDelta(), false);
+        lcd.checkEncoder(); // ruft Callback für Encoder-Bewegung auf
         if (Timer1RoundRobin == 0) {
-          handleMenuButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz
+          lcd.getButtons(); // benötigt etwa 130 µs für Button-Abfrage bei 400 kHz, ruft callbacks für gedrückte Buttons auf
         }
       }
     #endif

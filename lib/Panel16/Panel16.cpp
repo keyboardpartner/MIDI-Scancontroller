@@ -23,16 +23,17 @@ Panel16::Panel16(uint8_t panel_Addr)
 }
 
 void Panel16::init() {
-	init_priv();
+  init_priv();
 }
 
 void Panel16::init_priv() {
-	begin();
+  begin();
 }
 
 void Panel16::begin() {
-  _waitAction = dummyAction; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
-	setLEDdim(0x28, 0x10); // Dim Settings: bright, dark
+  _waitAction = dummyWait; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
+  _pressAction = dummyAction; // Pressed action callback auf default setzen, damit er nicht ins Leere läuft, falls er nicht definiert ist
+  setLEDdim(0x28, 0x10); // Dim Settings: bright, dark
   setLEDsWord(0, 0); // Clear lower row
   setLEDsWord(1, 0); // Clear upper row
   for (int i = 0; i < 16; i++) {
@@ -41,18 +42,18 @@ void Panel16::begin() {
 }
 
 void Panel16::setLEDdim(uint8_t dimlevel_bright, uint8_t dimlevel_dark) {
-	_data[0] = 0x12; // PCA9532 Command, 2 = PWM Frequency, AutoIncrement on
-	_data[1] = 0x00; // PWM Frequency = 152 / (n+1) Hz
-	// PCA9532 Command, 3 = LED brightness
-	_data[2] = dimlevel_dark; // darkest setting
+  _data[0] = 0x12; // PCA9532 Command, 2 = PWM Frequency, AutoIncrement on
+  _data[1] = 0x00; // PWM Frequency = 152 / (n+1) Hz
+  // PCA9532 Command, 3 = LED brightness
+  _data[2] = dimlevel_dark; // darkest setting
   // PCA9532 Command, 4 = PWM Frequency
-	_data[3] = 0x00;
-	// PCA9532 Command, 5 = LED brightness
-	_data[4] = dimlevel_bright; // dimmed
-	// Send data
+  _data[3] = 0x00;
+  // PCA9532 Command, 5 = LED brightness
+  _data[4] = dimlevel_bright; // dimmed
+  // Send data
   Wire.beginTransmission(_Addr);
-	Wire.write(_data, 5);   // 5 Bytes
-	Wire.endTransmission();
+  Wire.write(_data, 5);   // 5 Bytes
+  Wire.endTransmission();
 }
 
 void Panel16::setLEDsUpperByte(uint8_t row, uint8_t ledbyte) {
@@ -61,10 +62,10 @@ void Panel16::setLEDsUpperByte(uint8_t row, uint8_t ledbyte) {
   // row 0 = lower row, 1 = upper row
   _data[0] = 0x07 + row * 2; // PCA9532 Command, 7 = LED 4-7, AutoIncrement off
   _data[1] = ledbyte;
-	// Send data
+  // Send data
   Wire.beginTransmission(_Addr);
-	Wire.write(_data, 2);   // 2 Bytes
-	Wire.endTransmission();
+  Wire.write(_data, 2);   // 2 Bytes
+  Wire.endTransmission();
 }
 
 void Panel16::setLEDsLowerByte(uint8_t row, uint8_t ledbyte) {
@@ -73,10 +74,10 @@ void Panel16::setLEDsLowerByte(uint8_t row, uint8_t ledbyte) {
   // row 0 = lower row, 1 = upper row
   _data[0] = 0x06 + row * 2; // PCA9532 Command, 6 = LED 0-3, AutoIncrement off
   _data[1] = ledbyte;
-	// Send data
+  // Send data
   Wire.beginTransmission(_Addr);
-	Wire.write(_data, 2);   // 2 Bytes
-	Wire.endTransmission();
+  Wire.write(_data, 2);   // 2 Bytes
+  Wire.endTransmission();
 }
 
 void Panel16::setLEDsWord(uint8_t row, uint16_t ledword) {
@@ -85,10 +86,10 @@ void Panel16::setLEDsWord(uint8_t row, uint16_t ledword) {
   _data[0] = 0x16 + row * 2; // PCA9532 Command, 6 = LED 0-3, AutoIncrement on
   _data[1] = (uint8_t)ledword;
   _data[2] = (uint8_t)(ledword >> 8);
-	// Send data
+  // Send data
   Wire.beginTransmission(_Addr);
-	Wire.write(_data, 3);   // 3 Bytes
-	Wire.endTransmission();
+  Wire.write(_data, 3);   // 3 Bytes
+  Wire.endTransmission();
 }
 
 void Panel16::setLEDstate(uint8_t led, uint8_t ledstate) {
@@ -120,6 +121,7 @@ void Panel16::setLEDstate(uint8_t led, uint8_t ledstate) {
       _LEDsWord[row] |= led_off_state << led_mod8; // Blink-LED-Zustände setzen, auch wenn LED aus ist
     }
   }
+  // setLEDsWord(row, _LEDsWord[row]); {
   // nur die nötigen Ports aktualisieren
   if (led_mod8 < 8) {
     setLEDsLowerByte(row, (uint8_t)_LEDsWord[row]);
@@ -190,35 +192,70 @@ uint8_t Panel16::getButtonRow(uint8_t row) {
   // row 0 = lower row, 1 = upper row
   setLEDsWord(row, 0); // Alle LEDs in der Reihe aus
   Wire.beginTransmission(_Addr);
-	Wire.write(row);   // 1 Byte
+  Wire.write(row);   // 1 Byte
   Wire.endTransmission();
   Wire.requestFrom(_Addr, 1);
   uint8_t _databyte = Wire.read();
   setLEDsWord(row, _LEDsWord[row]); // LEDs wiederherstellen
   _databyte = ~(_databyte); // Nur 8 Bits sind Tasten
-	uint8_t _btnNumber;
+  uint8_t _btnNumber;
   if (_databyte == 0) return 0xFF; // keine Taste gedrückt
   for (_btnNumber = 0; _btnNumber < 8; _btnNumber++) {
     if (_databyte & (1 << _btnNumber)) {
+      _pressAction(_btnNumber + row * 8);
       return _btnNumber + row * 8;
     }
   }
+  return 0xFF; // kein Button gedrückt
 }
 
+uint8_t Panel16::getButtonRows() {
+  // return button number of both rows or 0xFF if none pressed
+  uint8_t button = getButtonRow(0);
+  if (button == 0xFF) {
+    button = getButtonRow(1);
+  }
+  return button;
+}
 
-uint8_t Panel16::getButtonRowWaitReleased(uint8_t row) {
-  // return button number (0..7) of given row, wait until all buttons released
-  // row 0 = lower row, 1 = upper row
-  uint8_t button, last_button;
-  last_button = 0xFF;
+void Panel16::checkAll() {
+  // just triggers callbacks for all currently pressed buttons
+  getButtonRow(0);
+  getButtonRow(1);
+  updateBlinkLEDs(); // LEDs mit aktivem Blinken weiter toggeln
+}
+
+void Panel16::checkRow(uint8_t row) {
+  // triggers callbacks for all currently pressed buttons in the given row, blinks LEDs
+  getButtonRow(row);
+  updateBlinkLEDs(); // LEDs mit aktivem Blinken weiter toggeln
+}
+
+void Panel16::waitReleased() {
+  // wait until all buttons are released
+  uint8_t _databyte0 = 0;
+  uint8_t _databyte1 = 0;
   do {
-    button = getButtonRow(row);
-    if (button != 0xFF) {
-      last_button = button;
-    }
     updateBlinkLEDs(); // LEDs mit aktivem Blinken weiter toggeln
-    // Callback-Funktion für Panel16, liefert derzeit gedrückten Panel16-Button
-    _waitAction(button);
-  } while (button != 0xFF); // Warten bis alle Tasten losgelassen sind
-  return last_button;
+    _waitAction(); // Callback-Funktion für Panel16: Warte auf Loslassen
+    if (millis() - _lastUpdateMillis >= 20) { // Warte-Intervall von 20 ms, um nicht zu oft zu scannen
+      _lastUpdateMillis = millis();
+      setLEDsWord(0, 0); // Alle LEDs in der Reihe aus
+      Wire.beginTransmission(_Addr);
+      Wire.write(0);   // 1 Byte
+      Wire.endTransmission();
+      Wire.requestFrom(_Addr, 1);
+      _databyte0 = Wire.read();
+      setLEDsWord(1, 0); // Alle LEDs in der Reihe aus
+      Wire.beginTransmission(_Addr);
+      Wire.write(1);   // 1 Byte
+      Wire.endTransmission();
+      Wire.requestFrom(_Addr, 1);
+      _databyte1 = Wire.read();
+      setLEDsWord(0, _LEDsWord[0]); // LEDs wiederherstellen
+      setLEDsWord(1, _LEDsWord[1]); // LEDs wiederherstellen    } else {
+    }
+
+  } while ((_databyte0 & _databyte1) != 0xFF); // Warten bis alle Tasten losgelassen sind
+  return ;
 }

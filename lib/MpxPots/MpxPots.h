@@ -14,22 +14,30 @@
 #define MPX_POTS_H
 
 #include <Arduino.h>
-#include "midi_io.h"
+#include "global_vars.h"
 
-#define LED_PIN 2 // Pin für LED
+// MPX Functions for reading analog inputs via MPX and 74HC164 shift register
 
-// MPX Functions for reading _analog inputs via MPX and 74HC164 shift register
-
-// MPX Port Definitions and Fast Manipulation Macros
-#define MPX_DATA PORTC0
-#define MPX_CLK  PORTC1
-// Fast port bit manipulation macros
-#define _SET_MPX_DATA asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
-#define _CLR_MPX_DATA asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
-#define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
-#define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
-
-#define _NOP_DLY asm volatile ("nop")
+#ifdef HX35_BOARD
+  #define ANLG_MPX // MPX-gestützte analoge Eingänge für MIDI-CC-Potis aktivieren, wenn HX3.5 Board definiert ist
+  // MPX Port Definitions and Fast Manipulation Macros
+  #define MPX_DATA PORTD4
+  #define MPX_CLK  PORTD5
+  // Fast port bit manipulation macros
+  #define _SET_MPX_DATA asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_DATA))
+  #define _CLR_MPX_DATA asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_DATA))
+  #define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_CLK))
+  #define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_CLK))
+#else
+  // MPX Port Definitions and Fast Manipulation Macros
+  #define MPX_DATA PORTC0
+  #define MPX_CLK  PORTC1
+  // Fast port bit manipulation macros
+  #define _SET_MPX_DATA asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
+  #define _CLR_MPX_DATA asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_DATA))
+  #define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
+  #define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTC)), "I" (MPX_CLK))
+#endif
 
 #define MPX_ACTIVE_TIMEOUT 10 // Anzahl der kompletten Durchläufe, die ein geänderter Potentiometerwert als aktiv gilt, höher = länger aktiv
 #define MPX_INTEGRATOR_FACTOR 4 // Faktor für die Integration der MPX-Werte, höher = stärker geglättet, aber auch träger

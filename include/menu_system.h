@@ -1,0 +1,240 @@
+#ifndef MENU_SYSTEM_H
+#define MENU_SYSTEM_H
+
+// #############################################################################
+//
+//    ##     ## ######## ##    ## ##     ## 
+//    ###   ### ##       ###   ## ##     ## 
+//    #### #### ##       ####  ## ##     ## 
+//    ## ### ## ######   ## ## ## ##     ## 
+//    ##     ## ##       ##  #### ##     ## 
+//    ##     ## ##       ##   ### ##     ## 
+//    ##     ## ######## ##    ##  #######  
+//
+// #############################################################################
+
+// Menu System für LCD mit I2C-Interface, basierend auf der Menu-Struktur aus Excel-Tabelle
+
+#include <Wire.h>
+#include <EEPROM.h>
+#include "MenuPanel.h"
+#include "global_vars.h"
+#include "menu_items.h"
+
+
+
+void callMenuAction() {
+  // Hier wird entschieden, was bei einer Wertänderung eines Menüpunktes passieren soll
+  // Bei Änderung von DBs oder Volume müssen die entsprechenden Werte an das FPGA oder MIDI gesendet werden
+  if (currentMenuEntry.editAction != NULL) {
+    currentMenuEntry.editAction();
+  }
+}
+
+bool menuInit() {
+  // Initialisiere Menü, setze Start- und Endpunkt und zeige Version an
+  if (lcd.begin(16, 2)) {
+    MenuItemActive = 0;
+    MenuItemReturn = 0; // Initiale Rücksprungposition auf ersten Menüpunkt setzen
+    // Display gefunden, zeige Startbild
+    lcd.setCursor(0, 0);
+    lcd.print(VERSION);
+    lcd.setCursor(0, 1);
+    lcd.print(F("C.Meyer 2026"));
+    return true;
+  } else {
+    // Kein Display gefunden
+    return false;
+  }
+}
+
+// Menu-Handling für LCD mit I2C-Interface
+
+void displayMenuValue() {
+  if (currentMenuEntry.editValuePtr == NULL) {  
+    // kein Zeiger zum Ändern, sollte nicht passieren, aber sicherheitshalber prüfen
+    lcd.setCursor(0, 1);
+    lcd.print(F("(none)")); // negative Werte sind unbenutzt, entsprechend kennzeichnen
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    return;
+  }
+  lcd.setCursor(0, 1);
+  int8_t item_value = *currentMenuEntry.editValuePtr;
+  if (MenuItemActive == MENU_KBD_DRIVER) {
+    if (item_value >= 0 && item_value < MENU_DRIVERCOUNT) {
+      lcd.printProgmem(&DriverTypes[item_value]);
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+      lcd.setCursor(13, 1);
+    } else {
+      lcd.print(F("(invalid)")); // ungültige Werte entsprechend kennzeichnen
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    }
+  } else {
+    lcd.print(item_value);
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    lcd.setCursor(3, 1);
+  }
+  lcd.write(LCD_ARW_LT);
+  if (item_value != (int8_t)EEPROM.read(MenuItemActive + EEPROM_MENUDEF_IDX)) {
+    lcd.setCursor(15, 1);
+    lcd.write('*'); // geänderte Werte mit Stern markieren
+  }
+  if (item_value < 0) {
+    lcd.setCursor(5, 1);
+    lcd.print(F("(unused)")); // negative Werte sind unbenutzt, entsprechend kennzeichnen
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+  }
+}
+
+void displayMenuItem() {
+  lcd.setCursor(0, 0);
+  // Kopiert MenuItem aus PROGMEM ins RAM, da lcd.print() nicht direkt aus PROGMEM lesen kann
+  lcd.print(currentMenuEntry.menuHeader);
+  lcd.clearEOL(); // Lösche evtl. alte Zeichen
+
+  lcd.setCursor(15, 0);
+  lcd.write(LCD_ARW_UD);
+  if (isSubMenu(MenuItemActive) && (currentMenuEntry.menuValueMax < 0)) {
+    lcd.setCursor(0, 1);
+    lcd.print(F("<EXIT>"));
+    lcd.write(LCD_ARW_RT); // Untermenü-Ende mit Pfeil nach rechts markieren
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+  } else if (currentMenuEntry.menuValueMax < 0) {
+    lcd.setCursor(0, 1);
+    lcd.print(F("<SETTINGS>"));
+    lcd.write(LCD_ARW_RT); // Untermenü mit Pfeil nach rechts markieren
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+  } else if (currentMenuEntry.menuValueMax > 0) {
+    displayMenuValue();
+  } else {
+    // Kein Wert zu ändern, nur Bestätigung nötig
+    lcd.setCursor(0, 1);
+    lcd.print(F("<ENTER>"));
+    lcd.clearEOL(); // Lösche evtl. alte Zeichen
+  }
+}
+
+void handleMenuEncoderChange(int16_t encoderDelta) {
+  // wird vom Callback der Encoderänderung aufgerufen
+  // Menü-Handling bei Encoder-Änderungen: Wert ändern,
+  if ((currentMenuEntry.menuValueMax <= 0) || (encoderDelta == 0)) 
+    return; // kein Wert zu ändern
+
+  // Encoder hat sich bewegt
+  int16_t oldValue = *currentMenuEntry.editValuePtr;
+  int16_t newValue = oldValue + encoderDelta; // Word, könnte sonst einen Überlauf geben
+  int16_t minValue = (int16_t)currentMenuEntry.menuValueMin;
+  int16_t maxValue = (int16_t)currentMenuEntry.menuValueMax;
+  if (newValue < minValue) {
+    newValue = minValue; // Unterlauf verhindern
+  } else if (newValue > maxValue) {
+    newValue = maxValue; // Maximalwert
+  }
+  if (currentMenuEntry.menuValueMax > 0) {
+    if (currentMenuEntry.editValuePtr == NULL) return; // kein Zeiger zum Ändern, sollte nicht passieren, aber sicherheitshalber prüfen
+    *currentMenuEntry.editValuePtr = (int8_t)newValue;
+    displayMenuValue();
+    callMenuAction(); // nur falls änderbar
+  }
+}
+
+void menuEEPROMsave() {
+  // speichert alle Menüwerte in EEPROM, z.B. vor einem Reset
+  if (currentMenuEntry.editValuePtr != NULL) {
+    EEPROM.update(MenuItemActive + EEPROM_MENUDEF_IDX, *currentMenuEntry.editValuePtr);
+    displayMenuValue(); // aktualisiere Anzeige, um Stern zu entfernen
+    callMenuAction(); // Action-Routine aufrufen, z.B. um geänderten Wert an FPGA oder MIDI zu senden
+  }
+}
+
+void handleMenuButtons(int8_t buttons) {
+  // Menü-Handling bei Button-Änderungen: Menupunkt wechseln oder Wert in EEPROM speichern
+  if (buttons != 0) {
+    if (buttons & LCD_BTNUP_MASK) {
+      // Up-Taste mit Autorepeat
+      uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
+      do {
+        if (isSubMenu(MenuItemActive)) {
+          uint8_t submenu_start = findSubMenuStartIndex(currentMenuEntry.submenuLink);
+          uint8_t submenu_end = findSubMenuEndIndex(currentMenuEntry.submenuLink);
+          if (MenuItemActive > submenu_start) {
+            MenuItemActive--;
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          } else {
+            MenuItemActive = submenu_end; // wrap around im Submenu
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          }
+        } else {
+          if (MenuItemActive > 0) {
+            MenuItemActive--;
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          } else {
+            MenuItemActive = m_main_end - 1; // wrap around
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          }
+        }
+        displayMenuItem();
+        buttons = lcd.waitReleased(timeout); // Warte bis losgelassen
+        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
+      } while (buttons);
+    }
+
+    if (buttons & LCD_BTNDN_MASK) {
+      // Down-Taste mit Autorepeat
+      uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
+      do {
+        if (isSubMenu(MenuItemActive)) {
+          uint8_t submenu_start = findSubMenuStartIndex(currentMenuEntry.submenuLink);
+          uint8_t submenu_end = findSubMenuEndIndex(currentMenuEntry.submenuLink);
+          if (MenuItemActive < submenu_end) {
+            MenuItemActive++;
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          } else {
+            MenuItemActive = submenu_start; // wrap around im Submenu
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          }
+        } else {
+          if (MenuItemActive < m_main_end - 1) {
+            MenuItemActive++;
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          } else {
+            MenuItemActive = 0; // wrap around
+            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          }
+        }
+        displayMenuItem();
+        buttons = lcd.waitReleased(timeout); // Warte bis losgelassen
+        timeout = 250; // verkürze Wartezeit für schnelleres Scrollen, wenn Taste gehalten wird
+      } while (buttons);
+
+    }
+
+    if (buttons & LCD_BTNENTER_MASK) {
+      // Enter-Taste, Wert in EEPROM speichern oder Submenu aufrufen
+      if (isSubMenu(MenuItemActive)) {
+        // Im Untermenü aufgerufen
+        if (currentMenuEntry.menuValueMax < 0) {
+          // Untermenü-Ende, Rücksprung zum Hauptmenü
+          MenuItemActive = MenuItemReturn; // Rücksprungposition wiederherstellen
+          getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          displayMenuItem();
+        } else {
+          // Wert in EEPROM speichern
+          menuEEPROMsave();
+        }
+      } else if (currentMenuEntry.menuValueMax < 0) {
+        // Im Hauptmenü, Submenu aufrufen
+        MenuItemReturn = MenuItemActive; // Rücksprungposition speichern
+        MenuItemActive = findSubMenuStartIndex(currentMenuEntry.submenuLink); // zum Submenu springen
+        getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+        displayMenuItem();
+      } else {
+        // Wert in EEPROM speichern
+        menuEEPROMsave();
+      } 
+      lcd.waitReleased(0); // Warte bis losgelassen
+    }
+  }
+}
+
+#endif

@@ -63,17 +63,25 @@ public:
   uint8_t getLEDstate(uint8_t led); // get single LED 0..15 state led_off, led_on, led_dark or led_bright
   bool getLEDonOff(uint8_t led); // get single LED 0..15 button state, true = on, false = off (dim states are treated as on)
   void toggleLEDstate(uint8_t led) ; // set single LED 0..15 state led_off when on, otherwise led_on, led_dark, led_bright when off
-  uint8_t getButtonRow(uint8_t row); // get binary button states of given row as byte, 1 = pressed
-  uint8_t getButtonRowWaitReleased(uint8_t row); // as above, wait for release of all buttons
+  uint8_t getButtonRow(uint8_t row); // get binary button states of given row as byte, returns button# 0..7 or 8..15
+  uint8_t getButtonRows() ; // both rows
+  void waitReleased(); // as above, wait for release of all buttons
   void updateBlinkLEDs(); // toggle LEDs with blinking active, should be called periodically every few ms
 
+  void checkAll();  // triggers callbacks for all currently pressed buttons, blinks LEDs
+  void checkRow(uint8_t row);  // triggers callbacks for all currently pressed buttons, blinks LEDs
+
+  typedef void (*waitCallback)();
+  void setWaitCallback(waitCallback action) { _waitAction = action; } // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
   typedef void (*actionCallback)(uint8_t button);
-  void setWaitCallback(actionCallback action) { _waitAction = action; } // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+  void setPressCallback(actionCallback action) { _pressAction = action; } // Callback for button press events
+
 
 private:
-
-  static void dummyAction(uint8_t button) { delay(10); } // debounce, in case user callback is not defined
-  actionCallback _waitAction; // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+  static void dummyAction(uint8_t button) { delay(2); } // debounce, in case user callback is not defined
+  static void dummyWait() { delay(10); } // debounce, in case user callback is not defined
+  waitCallback _waitAction; // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+  actionCallback _pressAction; // Callback for button press events
 
   void init_priv();
   uint8_t _data[8];
@@ -81,6 +89,7 @@ private:
   uint16_t _LEDsWord[2] = {0, 0};
   uint8_t _blinkToggle = 0;
   uint32_t _lastBlinkMillis = 0;
+  uint32_t _lastUpdateMillis = 0;
 
   // LED-States Bit 0, 1: State if ON, led_off, led_on, led_dark, led_bright
   // LED-States Bit 2, 3: Alternative blinking state: led_off, led_on, led_dark, led_bright

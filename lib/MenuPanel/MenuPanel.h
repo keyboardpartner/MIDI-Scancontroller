@@ -121,19 +121,16 @@ public:
   void createChar(uint8_t, const uint8_t[]);
   void setCursor(uint8_t, uint8_t);
   void cursorXY(uint8_t, uint8_t);
-  virtual size_t write(uint8_t);
+  virtual size_t write(uint8_t); // override write function from Print class
   void command(uint8_t);
   void init();
-  uint8_t getButtons();
-  uint8_t getButtonsWaitReleased(uint16_t timeout_ms); // as above, wait for release of all buttons
-  int16_t getEncoderDelta();
 
   //compatibility API function aliases
-  void blink_on();						// alias for blink()
-  void blink_off();       					// alias for noBlink()
-  void cursor_on();      	 					// alias for cursor()
-  void cursor_off();      					// alias for noCursor()
-  void load_custom_character(uint8_t char_num, uint8_t *rows);	// alias for createChar()
+  void blink_on();            // alias for blink()
+  void blink_off();                 // alias for noBlink()
+  void cursor_on();                   // alias for cursor()
+  void cursor_off();                // alias for noCursor()
+  void load_custom_character(uint8_t char_num, uint8_t *rows);  // alias for createChar()
   void printstr(const char[]);
 
   void printProgmem(const lcdTextType* progmem_str) {
@@ -143,9 +140,39 @@ public:
     print(oneItem.lcdText);
   }
 
+  typedef void (*actionEncCallback)(int16_t delta);
+  void setEncoderCallback(actionEncCallback action) { _encoderAction = action; } // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+  
+  typedef void (*actionBtnCallback)(uint8_t button);
+  void setButtonCallback(actionBtnCallback action)  { _buttonAction = action; } // Callback for wait loops, e.g. for button press handling, to avoid blocking calls
+  
+  
+  // #############################################################################
+  
+  // MenuPanel-Buttons und Encoder-Drucktaster lesen, 
+  // Rückgabe als Bitmaske, 0 = keine Taste gedrückt, 1 = Enter gedrückt, 2 = Up gedrückt, 4 = Down gedrückt:
+  uint8_t getButtons(); 
+  uint8_t waitReleased(uint16_t timeout_ms); // as above, wait for release of all buttons
+  void checkButtons(); // ruft bei Button-Änderungen ggf. Callback auf, sonst wie getButtons
+  
+  // absolute Position des Encoders, in der Regel ist getEncoderDelta für Menühandling ausreichend:
+  int32_t getEncoderPosition(); // ohne Callback
+  int16_t getEncoderDelta(); // Delta seit letzem Aufruf, ohne Callback
+  void checkEncoder(); // ruft bei Encoder-Änderungen Callback auf, sonst wie getEncoderDelta
+  
+  // WICHTIG: regelmäßig oder in einem Timer-Interrupt aufrufen, um Encoder-Position zu aktualisieren, z.B. alle 2 ms
+  void encoderISR(); 
+  
+  // #############################################################################
+
 private:
+  static void dummyEncoderAction(int16_t delta) {  }; // in case user callback is not defined
+  static void dummyButtonAction(uint8_t button) { delay(10); }; // in case user callback is not defined
+  actionEncCallback _encoderAction; // Callback for encoder movement handling, to avoid blocking calls
+  actionBtnCallback _buttonAction;  // Callback for button press handling, to avoid blocking calls
   void init_priv();
   void send(uint8_t data, uint8_t mode);
+  uint8_t _btnState_old = 0;
   uint8_t _Addr;
   uint8_t _displayfunction;
   uint8_t _displaycontrol;
@@ -154,9 +181,11 @@ private:
   uint8_t _cols;
   uint8_t _rows;
   uint8_t _current_col;
-  uint8_t _lastState = B00000011; // Initialer Zustand der Encoder-Bits
-  int16_t _encoderPosition = 0;
-  int16_t _encoderDelta = 0;
+  // Encolder-Handling: Position und Zeit der letzten Änderung, um Beschleunigungseffekt zu ermöglichen
+  volatile uint8_t _lastState = B00000011; // Initialer Zustand der Encoder-Bits
+  volatile int16_t _encoderPosition = 0;
+  volatile uint32_t _encoderMillis = millis();
+  int16_t _encoderPosition_old = 0;
 };
 
 #endif
