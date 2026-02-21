@@ -1,9 +1,12 @@
 {
 	"folders": [
 		{
-			"name": "MIDI-Scancontroller",
 			"path": "."
+		},
+		{
+			"name": ".pio",
+			"path": ".pio"
 		}
 	],
-	"settings": {}
+  "settings": {}
 }

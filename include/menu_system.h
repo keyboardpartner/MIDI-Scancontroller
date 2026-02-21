@@ -34,13 +34,14 @@ void callMenuAction() {
 bool menuInit() {
   // Initialisiere Menü, setze Start- und Endpunkt und zeige Version an
   if (lcd.begin(16, 2)) {
-    MenuItemActive = 0;
-    MenuItemReturn = 0; // Initiale Rücksprungposition auf ersten Menüpunkt setzen
+    MenuItemActiveIdx = 0;
+    MenuItemReturnIdx = 0; // Initiale Rücksprungposition auf ersten Menüpunkt setzen
     // Display gefunden, zeige Startbild
     lcd.setCursor(0, 0);
-    lcd.print(VERSION);
+    lcd.print(F(VERSION));
     lcd.setCursor(0, 1);
-    lcd.print(F("C.Meyer 2026"));
+    lcd.print(F(CREATOR));
+    delay(1000);
     return true;
   } else {
     // Kein Display gefunden
@@ -50,6 +51,33 @@ bool menuInit() {
 
 // Menu-Handling für LCD mit I2C-Interface
 
+void markEEPROMdifferent() {
+  // Zeigt rechts unten einen Stern an, wenn der aktuelle Wert 
+  // von dem in EEPROM gespeicherten Wert abweicht
+  if (*currentMenuEntry.editValuePtr != (int8_t)EEPROM.read(MenuItemActiveIdx + EEPROM_MENUDEF_IDX)) {
+    lcd.setCursor(15, 1);
+    lcd.write('*'); // geänderte Werte mit Stern markieren
+  }
+}
+
+void displayValueLine() {
+  // Nur Wert, Pfeile und ggf. Änderungs-Stern anzeigen
+  // Kann bei Menüeinträgen mit editAction verwendet werden, 
+  // z.B. für Dynamikkurve
+  lcd.setCursor(0, 1);
+  int8_t item_value = *currentMenuEntry.editValuePtr;
+  lcd.print(item_value);
+  lcd.clearEOL(); // Lösche evtl. alte Zeichen
+  markEEPROMdifferent();
+  lcd.setCursor(3, 1);
+  lcd.write(LCD_ARW_LT);
+  if (item_value < 0) {
+    lcd.setCursor(5, 1);
+    lcd.print(F("(unused)")); // negative Werte sind unbenutzt, entsprechend kennzeichnen
+  }
+}
+
+
 void displayMenuValue() {
   if (currentMenuEntry.editValuePtr == NULL) {  
     // kein Zeiger zum Ändern, sollte nicht passieren, aber sicherheitshalber prüfen
@@ -58,32 +86,13 @@ void displayMenuValue() {
     lcd.clearEOL(); // Lösche evtl. alte Zeichen
     return;
   }
-  lcd.setCursor(0, 1);
-  int8_t item_value = *currentMenuEntry.editValuePtr;
-  if (MenuItemActive == MENU_KBD_DRIVER) {
-    if (item_value >= 0 && item_value < MENU_DRIVERCOUNT) {
-      lcd.printProgmem(&DriverTypes[item_value]);
-      lcd.clearEOL(); // Lösche evtl. alte Zeichen
-      lcd.setCursor(13, 1);
-    } else {
-      lcd.print(F("(invalid)")); // ungültige Werte entsprechend kennzeichnen
-      lcd.clearEOL(); // Lösche evtl. alte Zeichen
-    }
+  if ((currentMenuEntry.editAction == NULL) ) {
+    // Standard-Anzeige für Werte ohne spezielle editAction, z.B. MIDI-Kanal oder CC-Nummer
+    displayValueLine();
   } else {
-    lcd.print(item_value);
-    lcd.clearEOL(); // Lösche evtl. alte Zeichen
-    lcd.setCursor(3, 1);
-  }
-  lcd.write(LCD_ARW_LT);
-  if (item_value != (int8_t)EEPROM.read(MenuItemActive + EEPROM_MENUDEF_IDX)) {
-    lcd.setCursor(15, 1);
-    lcd.write('*'); // geänderte Werte mit Stern markieren
-  }
-  if (item_value < 0) {
-    lcd.setCursor(5, 1);
-    lcd.print(F("(unused)")); // negative Werte sind unbenutzt, entsprechend kennzeichnen
-    lcd.clearEOL(); // Lösche evtl. alte Zeichen
-  }
+    // Spezielle Anzeige für Werte mit editAction, z.B. Treibername oder Dynamikkurve
+    currentMenuEntry.editAction(); // muss auch die Anzeige der Werte aufrufen, z.B. Treibername oder Dynamikkurve
+  } 
 }
 
 void displayMenuItem() {
@@ -94,7 +103,7 @@ void displayMenuItem() {
 
   lcd.setCursor(15, 0);
   lcd.write(LCD_ARW_UD);
-  if (isSubMenu(MenuItemActive) && (currentMenuEntry.menuValueMax < 0)) {
+  if (isSubMenu(MenuItemActiveIdx) && (currentMenuEntry.menuValueMax < 0)) {
     lcd.setCursor(0, 1);
     lcd.print(F("<EXIT>"));
     lcd.write(LCD_ARW_RT); // Untermenü-Ende mit Pfeil nach rechts markieren
@@ -131,19 +140,18 @@ void handleMenuEncoderChange(int16_t encoderDelta) {
     newValue = maxValue; // Maximalwert
   }
   if (currentMenuEntry.menuValueMax > 0) {
+    // nur falls änderbar
     if (currentMenuEntry.editValuePtr == NULL) return; // kein Zeiger zum Ändern, sollte nicht passieren, aber sicherheitshalber prüfen
     *currentMenuEntry.editValuePtr = (int8_t)newValue;
-    displayMenuValue();
-    callMenuAction(); // nur falls änderbar
+    displayMenuValue(); // ruft auch editAction auf, falls vorhanden
   }
 }
 
 void menuEEPROMsave() {
   // speichert alle Menüwerte in EEPROM, z.B. vor einem Reset
   if (currentMenuEntry.editValuePtr != NULL) {
-    EEPROM.update(MenuItemActive + EEPROM_MENUDEF_IDX, *currentMenuEntry.editValuePtr);
+    EEPROM.update(MenuItemActiveIdx + EEPROM_MENUDEF_IDX, *currentMenuEntry.editValuePtr);
     displayMenuValue(); // aktualisiere Anzeige, um Stern zu entfernen
-    callMenuAction(); // Action-Routine aufrufen, z.B. um geänderten Wert an FPGA oder MIDI zu senden
   }
 }
 
@@ -154,23 +162,23 @@ void handleMenuButtons(int8_t buttons) {
       // Up-Taste mit Autorepeat
       uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
       do {
-        if (isSubMenu(MenuItemActive)) {
+        if (isSubMenu(MenuItemActiveIdx)) {
           uint8_t submenu_start = findSubMenuStartIndex(currentMenuEntry.submenuLink);
           uint8_t submenu_end = findSubMenuEndIndex(currentMenuEntry.submenuLink);
-          if (MenuItemActive > submenu_start) {
-            MenuItemActive--;
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          if (MenuItemActiveIdx > submenu_start) {
+            MenuItemActiveIdx--;
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           } else {
-            MenuItemActive = submenu_end; // wrap around im Submenu
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+            MenuItemActiveIdx = submenu_end; // wrap around im Submenu
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           }
         } else {
-          if (MenuItemActive > 0) {
-            MenuItemActive--;
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          if (MenuItemActiveIdx > 0) {
+            MenuItemActiveIdx--;
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           } else {
-            MenuItemActive = m_main_end - 1; // wrap around
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+            MenuItemActiveIdx = m_main_end - 1; // wrap around
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           }
         }
         displayMenuItem();
@@ -183,23 +191,23 @@ void handleMenuButtons(int8_t buttons) {
       // Down-Taste mit Autorepeat
       uint16_t timeout = 750; // Startwert für getButtonsWaitReleased, wird nach erstem Durchlauf verkürzt für schnelleres Scrollen, wenn Taste gehalten wird
       do {
-        if (isSubMenu(MenuItemActive)) {
+        if (isSubMenu(MenuItemActiveIdx)) {
           uint8_t submenu_start = findSubMenuStartIndex(currentMenuEntry.submenuLink);
           uint8_t submenu_end = findSubMenuEndIndex(currentMenuEntry.submenuLink);
-          if (MenuItemActive < submenu_end) {
-            MenuItemActive++;
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          if (MenuItemActiveIdx < submenu_end) {
+            MenuItemActiveIdx++;
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           } else {
-            MenuItemActive = submenu_start; // wrap around im Submenu
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+            MenuItemActiveIdx = submenu_start; // wrap around im Submenu
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           }
         } else {
-          if (MenuItemActive < m_main_end - 1) {
-            MenuItemActive++;
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          if (MenuItemActiveIdx < m_main_end - 1) {
+            MenuItemActiveIdx++;
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           } else {
-            MenuItemActive = 0; // wrap around
-            getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+            MenuItemActiveIdx = 0; // wrap around
+            getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           }
         }
         displayMenuItem();
@@ -211,12 +219,12 @@ void handleMenuButtons(int8_t buttons) {
 
     if (buttons & LCD_BTNENTER_MASK) {
       // Enter-Taste, Wert in EEPROM speichern oder Submenu aufrufen
-      if (isSubMenu(MenuItemActive)) {
+      if (isSubMenu(MenuItemActiveIdx)) {
         // Im Untermenü aufgerufen
         if (currentMenuEntry.menuValueMax < 0) {
           // Untermenü-Ende, Rücksprung zum Hauptmenü
-          MenuItemActive = MenuItemReturn; // Rücksprungposition wiederherstellen
-          getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+          MenuItemActiveIdx = MenuItemReturnIdx; // Rücksprungposition wiederherstellen
+          getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
           displayMenuItem();
         } else {
           // Wert in EEPROM speichern
@@ -224,9 +232,9 @@ void handleMenuButtons(int8_t buttons) {
         }
       } else if (currentMenuEntry.menuValueMax < 0) {
         // Im Hauptmenü, Submenu aufrufen
-        MenuItemReturn = MenuItemActive; // Rücksprungposition speichern
-        MenuItemActive = findSubMenuStartIndex(currentMenuEntry.submenuLink); // zum Submenu springen
-        getMenuEntry(MenuItemActive); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
+        MenuItemReturnIdx = MenuItemActiveIdx; // Rücksprungposition speichern
+        MenuItemActiveIdx = findSubMenuStartIndex(currentMenuEntry.submenuLink); // zum Submenu springen
+        getMenuEntry(MenuItemActiveIdx); // Menüpunkt aus PROGMEM lesen, damit wir den Link für die Anzeige haben
         displayMenuItem();
       } else {
         // Wert in EEPROM speichern

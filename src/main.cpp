@@ -16,19 +16,16 @@
 // 20 MHz Bootloaders:
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 
-#include <Arduino.h>
-#include <EEPROM.h>
-#include <TimerOne.h>
-#include "midi_io.h"
-#include "global_vars.h"
-#include "menu_system.h"
-
 // Define used modules here, comment out unused modules to save program memory
 #define LCD_I2C
 #define ANLG_MPX
 #define PANEL16
 
-
+#include <Arduino.h>
+#include <EEPROM.h>
+#include <TimerOne.h>
+#include "midi_io.h"
+#include "global_vars.h"
 
 
 uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
@@ -59,7 +56,10 @@ bool panel16Present = false;
   MPXpots mpxPots(ANLG_INPUTS, MPX_ACTIVE_TIMEOUT, MPX_INTEGRATOR_FACTOR);
 #endif
 
-
+#ifdef LCD_I2C
+  // Für MenuPanel mit LCD I2C-Interface
+  #include "menu_system.h"
+#endif
 
 // #############################################################################
 //
@@ -238,33 +238,38 @@ void ScanPedal() {
 //
 // #############################################################################
 
-void ScanManualsFatar1_61() {
-  // Upper und Lower scannen
+void ScanManualsFatar1_Pulse6105() {
+  // Upper und Lower scannen, auch für PULSE 6105WF mit gleicher Pinbelegung wie FATARSCAN,
+  // aber mit prePulses und anderem scankey-Startwert
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
   AnyKeyPressed = false;
+  _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
+  delayMicroseconds(1);
+  _CLR_TEST;
   uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
   uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
   PORTD = portd_idle;  // zurück zu idle
-  int8_t scankey = KEYS - scanParams.keyOffset; // aktuelle Taste
-  for (uint8_t tcount = 0; tcount < 8; tcount++) {
-    PORTB = (PORTB & B11111000) | tcount; // nur unterste 3 Bits, als T-Drive an Decoder
-    // delayMicroseconds(1); // kurze Pause, Settle time
+  int8_t scankey = 0; // aktuelle Taste
+  if (scanParams.keyOffset != 0) {
+    scankey = KEYS - scanParams.keyOffset; // aktuelle Taste
+  }
+  for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
+    PORTB = (PORTB & B11111000) | tdrive; // nur unterste 3 Bits, als T-Drive an Decoder
+    delayMicroseconds(1); // kurze Pause, Settle time
     // SRs einer Gruppe laden, an FT_UPR und FT_LWR steht danach das erste Bit an
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
       if (pulsecount == 0) {
-        // erstes Bit
-        _NOP_DLY;
-        _NOP_DLY;
+        // erstes Bit mit LOAD laden, danach Taktung für nächste Bits
         _CLR_FT_LOAD; // FT_LOAD auf LOW
         _SET_FT_CLK;  // FT_CLK auf HIGH
-        PORTD = portd_idle;  // zurück zu idle
+        PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
         for (int8_t i = 0; i < scanParams.prePulses; i++) {
           _SET_FT_CLK;  // FT_CLK auf HIGH
           _CLR_FT_CLK;  // FT_CLK auf LOW
         }
       } else {
-        // erstes Bit, da FT_LOAD auf LOW, hier ist noch keine Taktung nötig
+        // erstes Bit
         _SET_FT_CLK;  // FT_CLK auf HIGH
         _CLR_FT_CLK;  // FT_CLK auf LOW
       }
@@ -295,6 +300,9 @@ void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
   // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
   // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
+  _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
+  delayMicroseconds(1);
+  _CLR_TEST;
   AnyKeyPressed = false;
   uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
   uint8_t scankey = 0; // aktuelle Taste
@@ -338,6 +346,9 @@ void ScanManualsFatar2() {
 
 void ScanManualsSR61() {
   // Manual mit 4014 SR scannen, Zeit für 61 Manualtasten etwa 81 us bei 20 MHz Takt
+  _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
+  delayMicroseconds(1);
+  _CLR_TEST;
   AnyKeyPressed = false; //Timing hier nicht wichtig
   uint8_t scankey; // aktuelle Taste
   uint8_t mk_upr, mk_upr_old;
@@ -393,7 +404,7 @@ void scanKeybeds() {
   ScanPedal();    // 25 us bei 20 MHz
   switch (MenuValues[MENU_KBD_DRIVER]) {
     case drv_fatar1:
-      ScanManualsFatar1_61(); // 270 us bei 20 MHz
+      ScanManualsFatar1_Pulse6105(); // 270 us bei 20 MHz
       break;
     case drv_fatar2:
       ScanManualsFatar2();   // 250 us bei 20 MHz
@@ -402,7 +413,7 @@ void scanKeybeds() {
       ScanManualsSR61();     // 81 us bei 20 MHz
       break;
     case drv_pulse6105:
-      ScanManualsFatar1_61(); // 270 us bei 20 MHz
+      ScanManualsFatar1_Pulse6105(); // 270 us bei 20 MHz
       break;
     default:
       break;
@@ -485,12 +496,50 @@ void configurePorts(uint8_t driverType) {
 
 void setKbdDriver() {
   // Hier wird die Portkonfiguration je nach ausgewähltem Treiber gesetzt
+  #ifdef LCD_I2C
+    int8_t item_value = MenuValues[MENU_KBD_DRIVER];
+    lcd.setCursor(0, 1);
+    if (item_value >= 0 && item_value < MENU_DRIVERCOUNT) {
+      lcd.printProgmem(&DriverTypes[item_value]);
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    } else {
+      lcd.print(F("(invalid)")); // ungültige Werte entsprechend kennzeichnen
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    }
+    markEEPROMdifferent();
+    lcd.setCursor(13, 1);
+    lcd.write(LCD_ARW_LT);
+  #endif
   configurePorts(MenuValues[MENU_KBD_DRIVER]);
 }
 
 void setDynSlope() {
   // Hier wird die Portkonfiguration je nach ausgewähltem Treiber gesetzt
-  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOOPE]);
+  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOPE]);
+  #ifdef LCD_I2C
+    displayValueLine(); // STandard-Anzeigeroutine für Integer-Wert
+  #endif
+}
+
+
+void setBtnMode(){
+  #ifdef LCD_I2C
+    int8_t item_value = MenuValues[MenuItemActiveIdx];
+    lcd.setCursor(0, 1);
+    if (item_value >= 0 && item_value < MENU_BTNMODECOUNT) {
+      lcd.printProgmem(&ButtonModes[item_value]);
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    } else {
+      lcd.print(F("(invalid)")); // ungültige Werte entsprechend kennzeichnen
+      lcd.clearEOL(); // Lösche evtl. alte Zeichen
+    }
+    markEEPROMdifferent();
+    lcd.setCursor(13, 1);
+    lcd.write(LCD_ARW_LT);
+    #ifdef PANEL16
+      panel16.setLEDstate(MenuItemActiveIdx - MENU_BTN_MODE, panel16.btnModeToLED[item_value]); // LEDs anhand ButtonMode setzen
+    #endif
+  #endif
 }
 
 // #############################################################################
@@ -553,17 +602,6 @@ void onMenuEncoder(int16_t delta) {
 }
 
 // #############################################################################
-//
-//     #     # ####### #     # #     #
-//     ##   ## #       ##    # #     #
-//     # # # # #       # #   # #     #
-//     #  #  # #####   #  #  # #     #
-//     #     # #       #   # # #     #
-//     #     # #       #    ## #     #
-//     #     # ####### #     #  #####
-//
-// #############################################################################
-
 
 void blinkLED(uint8_t times) {
   // Board-LED blinkt zur Bestätigung von Aktionen, z.B. Speichern von Werten im EEPROM
@@ -578,31 +616,39 @@ void blinkLED(uint8_t times) {
 // ------------------------------------------------------------------------------
 
 #ifdef PANEL16
-
 void handlePanel16(uint8_t row) {
   // Panel16-Handling, hier werden Tasten einer Reihe abgefragt und LEDs gesetzt
   uint8_t bnt_number = panel16.getButtonRow(row); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
   if (bnt_number != 0xFF) {
-    uint8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
+    int8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
+    int8_t btn_cc = MenuValues[MENU_BTN_CC + bnt_number];
     switch (MenuValues[MENU_BTN_MODE + bnt_number]) {
       case btnmode_send_cc_val:
         // Button Mode 0 = Toggle, sendet MIDI-CC mit 127 bei ON und 0 bei OFF
-        MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number], btn_onoff);
+        MidiSendController(MenuValues[m_upper_ch], btn_cc, btn_onoff);
         panel16.toggleLEDstate(bnt_number);
         break;
       case btnmode_send_cc_evt:
         // Button Mode 1 = Event, sendet immer MIDI-CC mit 127 bei ON und bei OFF
-        MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number], 127);
+        MidiSendController(MenuValues[m_upper_ch], btn_cc, 127);
         break;
       case btnmode_send_prg_ch:
         // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendProgramChange(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
+        MidiSendProgramChange(MenuValues[m_upper_ch], btn_cc);
+        for (uint8_t i = 0; i < 16; i++) {
+          if (MenuValues[MENU_BTN_MODE + i] == btnmode_send_prg_ch) {
+            panel16.setLEDonOff(i, false); // alle Program Change LEDs ausschalten
+            panel16.setLEDblink(i, false); // sicherheitshalber auch den LED-Zustand zurücksetzen
+          }
+        }
+        panel16.setLEDonOff(bnt_number, true); // aktuelle LED bei Program Change immer an
+        panel16.setLEDblink(bnt_number, true); // aktuelle LED bei Program Change immer blinken
         break;
       case btnmode_send_note:
         // Button Mode 3 = Note On/Off, sendet MIDI Note On mit Velocity 64 bei ON und Note Off bei OFF, Note Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], btn_cc);
         panel16.waitReleased();
-        MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BTN_CC + bnt_number]);
+        MidiSendNoteOff(MenuValues[m_upper_ch], btn_cc);
         break;
     }
     panel16.waitReleased();
@@ -611,8 +657,8 @@ void handlePanel16(uint8_t row) {
     #endif
   };
 }
-
 #endif
+
 
 
 // #############################################################################
@@ -643,21 +689,8 @@ void timer1SemaphoreISR() {
 
 void setup() {
   Serial.begin(31250);
-  // set led port as output
   pinMode(LED_PIN, OUTPUT);
-  // Defaults aus EEPROM lesen
-  initMenuValues();
-  if (EEPROM.read(EEPROM_VERSION_IDX) != FIRMWARE_VERSION) {
-    for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {   
-      // ungültiger Wert, auf default zurücksetzen
-      int8_t eep_val = MenuDefaults[i]; 
-      EEPROM.update(i + EEPROM_MENUDEF_IDX, eep_val);
-      MenuValues[i] = eep_val;
-    }
-  }
-  configurePorts(MenuValues[MENU_KBD_DRIVER]); // Port Initialisierung je nach Treibertyp
-  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOOPE]);
-
+  
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
   if (MenuValues[MENU_KBD_DRIVER] >= drv_fatar1) {
     Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
@@ -665,43 +698,80 @@ void setup() {
     Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
   }
   Timer1.initialize(500); // Timer1 auf 500 us einstellen
-
+  
   MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
   MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
   MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
-
+  
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
-
+  
   #ifdef LCD_I2C
     if (menuInit()) {
       lcdPresent = true;
-      MenuItemActive = 0; // erstes Menü-Item aktivieren
-      getMenuEntry(MenuItemActive);
-      displayMenuItem(); // Hauptmenü anzeigen
+      MenuItemActiveIdx = 0; // erstes Menü-Item aktivieren
       // Callback-Funktion für MenuPanel-Button-Handling registrieren
       lcd.setButtonCallback(onMenuButton); 
       // Callback-Funktion für MenuPanel-Encoder-Handling registrieren
       lcd.setEncoderCallback(onMenuEncoder);
     }
   #endif
-
+  
   blinkLED(3);
+  initMenuValues(); // Defaults-Werte laden, falls EEPROM ungültig oder nicht programmiert
+  // Defaults aus EEPROM lesen
+  if (EEPROM.read(EEPROM_VERSION_IDX) != FIRMWARE_VERSION) {
+    // EEPROM veraltet oder nicht programmiert, auf Defaults zurücksetzen
+    #ifdef LCD_I2C
+      if (lcdPresent) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(F("EEPROM invalid,"));
+        lcd.setCursor(0, 1);
+        lcd.print(F("reset to defaults"));
+        delay(1500);
+        blinkLED(2);
+      }
+    #else 
+      delay(1000);
+      blinkLED(2);
+    #endif
+    for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {   
+      EEPROM.update(i + EEPROM_MENUDEF_IDX, MenuDefaults[i]);
+    }
+    EEPROM.update(EEPROM_VERSION_IDX, FIRMWARE_VERSION);
+  } else {
+    // gültige Werte, in MenuValues laden
+    for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {
+      MenuValues[i] = EEPROM.read(i + EEPROM_MENUDEF_IDX);
+    }
+  }
+  #ifdef LCD_I2C
+    if (lcdPresent) {
+      getMenuEntry(MenuItemActiveIdx);
+      displayMenuItem(); // Hauptmenü anzeigen
+    }
+  #endif
+  configurePorts(MenuValues[MENU_KBD_DRIVER]); // Port Initialisierung je nach Treibertyp
+  CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOPE]);
 
   #ifdef PANEL16
     Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
     if (Wire.endTransmission(true) == 0) {
       panel16Present = true;
       panel16.begin();
-      // just a test for Panel16 library
-      // Bit 7 = Active/On, Bit 6 = Blinking, Bit 4,5 = OffState, Bit 2,3 = BlinkState, Bit 0,1 = OnState
-      // mit State =%00 = OFF, %01 = ON, %10 = PWM_0 (darker), %11= PWM_1 (brighter)
-      panel16.setLEDstate(2, panel16.led_hilight | panel16.led_alt_dark | panel16.led_blink_ena); // einzelne LED in lower row
-      panel16.setLEDstate(3, panel16.led_dark | panel16.led_alt_dark | panel16.led_btn_on); // einzelne LED in lower row
-      panel16.setLEDstate(4, 0b10001001); // einzelne LED in lower row, direkte Bitmask, entspricht hilight, alt_bright, off_dark, blink_ena
-      panel16.setLEDstate(8, panel16.led_hilight | panel16.led_alt_bright | panel16.led_off_dark | panel16.led_blink_ena); // einzelne LED in upper row
-      panel16.setLEDstate(13, panel16.led_dark | panel16.led_btn_on); // einzelne LED in upper row
       panel16.setWaitCallback(onPanel16releaseWait); // Callback-Funktion für Button-Handling registrieren
+      for (uint8_t i = 0; i < 16; i++) {
+        panel16.setLEDstate(i, panel16.btnModeToLED[MenuValues[MENU_BTN_MODE + i]]); // LEDs anhand ButtonMode setzen
+      }
+      bool is_first_prg_ch = true; // Flag, um die erste gefundene Program Change LED einzuschalten
+      for (uint8_t i = 0; i < 16; i++) {
+        if (MenuValues[MENU_BTN_MODE + i] == btnmode_send_prg_ch) {
+          panel16.setLEDonOff(i, is_first_prg_ch); // alle anderen Program Change LEDs ausschalten
+          panel16.setLEDblink(i, is_first_prg_ch); // alle anderen Program Change LEDs ausschalten
+          is_first_prg_ch = false; // nur die erste gefundene Program Change LED einschalten
+        }
+      }
     }
   #endif
 
@@ -710,6 +780,7 @@ void setup() {
     mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
   #endif
 }
+
 
 // #############################################################################
 

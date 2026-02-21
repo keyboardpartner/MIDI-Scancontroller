@@ -34,6 +34,7 @@ const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = {
 };
 
 #define MENU_BTNMODECOUNT 4
+
 enum {btnmode_send_cc_val, btnmode_send_cc_evt, btnmode_send_prg_ch, btnmode_send_note};
 const lcdTextType ButtonModes[MENU_BTNMODECOUNT] PROGMEM = {
   { "Send CC Val" }, // Sendet CC entsprechend der Zuweisung, bei ON 127, bei OFF 0
@@ -42,9 +43,12 @@ const lcdTextType ButtonModes[MENU_BTNMODECOUNT] PROGMEM = {
   { "Send Note" },   // Sendet MIDI Note On mit Velocity 64 wenn gedrückt und Note Off wenn losgelassen, Note Nummer aus MenuValues[m_btn1 + bnt_number]
 };
 
+
 void setKbdDriver();
 
 void setDynSlope();
+
+void setBtnMode();
 
 
 // ------------------------------------------------------------------------------
@@ -81,13 +85,14 @@ typedef void (*action)();
 typedef struct {
   char menuHeader[16];
   int8_t submenuLink;
-  uint8_t* editValuePtr;
-  action editAction;
+  int8_t* editValuePtr;
+  action editAction; // function called when value changes
   int8_t menuValueMin;
   int8_t menuValueMax;
 } menuEntryType;
 
-#define MENU_ITEMCOUNT 69
+#define MENU_ITEMCOUNT 57
+int8_t MenuValues[MENU_ITEMCOUNT];
 
 // Diese Tabelle enthält die Menüstruktur, die in der Excel-Tabelle HX35_menuItems.xlsx definiert ist
 // Menü-Text, Link zu Untermenüs, Zeiger auf Werte, die bei Änderung geändert werden sollen, 
@@ -108,73 +113,61 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Pot 2 CC", m_pot_assign, &MenuValues[11], NULL, -1, 127},
   {"Pot 3 CC", m_pot_assign, &MenuValues[12], NULL, -1, 127},
   {"Pot 4 CC", m_pot_assign, &MenuValues[13], NULL, -1, 127},
-  {"Pot 5 CC", m_pot_assign, &MenuValues[14], NULL, -1, 127},
-  {"Pot 6 CC", m_pot_assign, &MenuValues[15], NULL, -1, 127},
-  {"Pot 7 CC", m_pot_assign, &MenuValues[16], NULL, -1, 127},
-  {"Pot 8 CC", m_pot_assign, &MenuValues[17], NULL, -1, 127},
-  {"Pot 9 CC", m_pot_assign, &MenuValues[18], NULL, -1, 127},
-  {"Pot 10 CC", m_pot_assign, &MenuValues[19], NULL, -1, 127},
-  {"Pot 11 CC", m_pot_assign, &MenuValues[20], NULL, -1, 127},
-  {"Pot 12 CC", m_pot_assign, &MenuValues[21], NULL, -1, 127},
-  {"Pot 13 CC", m_pot_assign, &MenuValues[22], NULL, -1, 127},
-  {"Pot 14 CC", m_pot_assign, &MenuValues[23], NULL, -1, 127},
-  {"Pot 15 CC", m_pot_assign, &MenuValues[24], NULL, -1, 127},
-  {"Pot 16 CC", m_pot_assign, &MenuValues[25], NULL, -1, 127},
   {"Pot CC", m_pot_assign, NULL, NULL, -1, -1},
-  {"Btn 1 CC/Prg", m_btn_assign, &MenuValues[27], NULL, -1, 127},
-  {"Btn 2 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},
-  {"Btn 3 CC/Prg", m_btn_assign, &MenuValues[29], NULL, -1, 127},
-  {"Btn 4 CC/Prg", m_btn_assign, &MenuValues[30], NULL, -1, 127},
-  {"Btn 5 CC/Prg", m_btn_assign, &MenuValues[31], NULL, -1, 127},
-  {"Btn 6 CC/Prg", m_btn_assign, &MenuValues[32], NULL, -1, 127},
-  {"Btn 7 CC/Prg", m_btn_assign, &MenuValues[33], NULL, -1, 127},
-  {"Btn 8 CC/Prg", m_btn_assign, &MenuValues[34], NULL, -1, 127},
-  {"Btn 9 CC/Prg", m_btn_assign, &MenuValues[35], NULL, -1, 127},
-  {"Btn 10 CC/Prg", m_btn_assign, &MenuValues[36], NULL, -1, 127},
-  {"Btn 11 CC/Prg", m_btn_assign, &MenuValues[37], NULL, -1, 127},
-  {"Btn 12 CC/Prg", m_btn_assign, &MenuValues[38], NULL, -1, 127},
-  {"Btn 13 CC/Prg", m_btn_assign, &MenuValues[39], NULL, -1, 127},
-  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[40], NULL, -1, 127},
-  {"Btn 15 CC/Prg", m_btn_assign, &MenuValues[41], NULL, -1, 127},
-  {"Btn 16 CC/Prg", m_btn_assign, &MenuValues[42], NULL, -1, 127},
+  {"Btn 1 CC/Prg", m_btn_assign, &MenuValues[15], NULL, -1, 127},
+  {"Btn 2 CC/Prg", m_btn_assign, &MenuValues[16], NULL, -1, 127},
+  {"Btn 3 CC/Prg", m_btn_assign, &MenuValues[17], NULL, -1, 127},
+  {"Btn 4 CC/Prg", m_btn_assign, &MenuValues[18], NULL, -1, 127},
+  {"Btn 5 CC/Prg", m_btn_assign, &MenuValues[19], NULL, -1, 127},
+  {"Btn 6 CC/Prg", m_btn_assign, &MenuValues[20], NULL, -1, 127},
+  {"Btn 7 CC/Prg", m_btn_assign, &MenuValues[21], NULL, -1, 127},
+  {"Btn 8 CC/Prg", m_btn_assign, &MenuValues[22], NULL, -1, 127},
+  {"Btn 9 CC/Prg", m_btn_assign, &MenuValues[23], NULL, -1, 127},
+  {"Btn 10 CC/Prg", m_btn_assign, &MenuValues[24], NULL, -1, 127},
+  {"Btn 11 CC/Prg", m_btn_assign, &MenuValues[25], NULL, -1, 127},
+  {"Btn 12 CC/Prg", m_btn_assign, &MenuValues[26], NULL, -1, 127},
+  {"Btn 13 CC/Prg", m_btn_assign, &MenuValues[27], NULL, -1, 127},
+  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},
+  {"Btn 15 CC/Prg", m_btn_assign, &MenuValues[29], NULL, -1, 127},
+  {"Btn 16 CC/Prg", m_btn_assign, &MenuValues[30], NULL, -1, 127},
   {"Btn CC", m_btn_assign, NULL, NULL, -1, -1},
-  {"Btn 1 Mode", m_btn_mode, &MenuValues[44], NULL, -1, 127},
-  {"Btn 2 Mode", m_btn_mode, &MenuValues[45], NULL, -1, 127},
-  {"Btn 3 Mode", m_btn_mode, &MenuValues[46], NULL, -1, 127},
-  {"Btn 4 Mode", m_btn_mode, &MenuValues[47], NULL, -1, 127},
-  {"Btn 5 Mode", m_btn_mode, &MenuValues[48], NULL, -1, 127},
-  {"Btn 6 Mode", m_btn_mode, &MenuValues[49], NULL, -1, 127},
-  {"Btn 7 Mode", m_btn_mode, &MenuValues[50], NULL, -1, 127},
-  {"Btn 8 Mode", m_btn_mode, &MenuValues[51], NULL, -1, 127},
-  {"Btn 9 Mode", m_btn_mode, &MenuValues[52], NULL, -1, 127},
-  {"Btn 10 Mode", m_btn_mode, &MenuValues[53], NULL, -1, 127},
-  {"Btn 11 Mode", m_btn_mode, &MenuValues[54], NULL, -1, 127},
-  {"Btn 12 Mode", m_btn_mode, &MenuValues[55], NULL, -1, 127},
-  {"Btn 13 Mode", m_btn_mode, &MenuValues[56], NULL, -1, 127},
-  {"Btn 14 Mode", m_btn_mode, &MenuValues[57], NULL, -1, 127},
-  {"Btn 15 Mode", m_btn_mode, &MenuValues[58], NULL, -1, 127},
-  {"Btn 16 Mode", m_btn_mode, &MenuValues[59], NULL, -1, 127},
+  {"Btn 1 Mode", m_btn_mode, &MenuValues[32], &setBtnMode, 0, 3},
+  {"Btn 2 Mode", m_btn_mode, &MenuValues[33], &setBtnMode, 0, 3},
+  {"Btn 3 Mode", m_btn_mode, &MenuValues[34], &setBtnMode, 0, 3},
+  {"Btn 4 Mode", m_btn_mode, &MenuValues[35], &setBtnMode, 0, 3},
+  {"Btn 5 Mode", m_btn_mode, &MenuValues[36], &setBtnMode, 0, 3},
+  {"Btn 6 Mode", m_btn_mode, &MenuValues[37], &setBtnMode, 0, 3},
+  {"Btn 7 Mode", m_btn_mode, &MenuValues[38], &setBtnMode, 0, 3},
+  {"Btn 8 Mode", m_btn_mode, &MenuValues[39], &setBtnMode, 0, 3},
+  {"Btn 9 Mode", m_btn_mode, &MenuValues[40], &setBtnMode, 0, 3},
+  {"Btn 10 Mode", m_btn_mode, &MenuValues[41], &setBtnMode, 0, 3},
+  {"Btn 11 Mode", m_btn_mode, &MenuValues[42], &setBtnMode, 0, 3},
+  {"Btn 12 Mode", m_btn_mode, &MenuValues[43], &setBtnMode, 0, 3},
+  {"Btn 13 Mode", m_btn_mode, &MenuValues[44], &setBtnMode, 0, 3},
+  {"Btn 14 Mode", m_btn_mode, &MenuValues[45], &setBtnMode, 0, 3},
+  {"Btn 15 Mode", m_btn_mode, &MenuValues[46], &setBtnMode, 0, 3},
+  {"Btn 16 Mode", m_btn_mode, &MenuValues[47], &setBtnMode, 0, 3},
   {"Btn Mode", m_btn_mode, NULL, NULL, -1, -1},
-  {"Kbd Driver", m_kbd_driver, &MenuValues[61], &setKbdDriver, 0, 5},
-  {"Velocity Min", m_kbd_driver, &MenuValues[62], NULL, 1, 30},
-  {"Velocity MaxAdj", m_kbd_driver, &MenuValues[63], NULL, 0, 30},
-  {"Velocity Slope", m_kbd_driver, &MenuValues[64], NULL, 5, 30},
-  {"Upper Base", m_kbd_driver, &MenuValues[65], NULL, 12, 48},
-  {"Lower Base", m_kbd_driver, &MenuValues[66], NULL, 12, 48},
-  {"Pedal Base", m_kbd_driver, &MenuValues[67], NULL, 12, 48},
-  {"Kbd Driver", m_kbd_driver, &MenuValues[68], NULL, -1, -1},
+  {"Kbd Driver", m_kbd_driver, &MenuValues[49], &setKbdDriver, 0, 4},
+  {"Velocity Min", m_kbd_driver, &MenuValues[50], &setDynSlope, 1, 30},
+  {"Velocity MaxAdj", m_kbd_driver, &MenuValues[51], NULL, 0, 20},
+  {"Velocity Slope", m_kbd_driver, &MenuValues[52], &setDynSlope, 1, 40},
+  {"Upper Base", m_kbd_driver, &MenuValues[53], NULL, 12, 60},
+  {"Lower Base", m_kbd_driver, &MenuValues[54], NULL, 12, 60},
+  {"Pedal Base", m_kbd_driver, &MenuValues[55], NULL, 12, 60},
+  {"Keyboard", m_kbd_driver, &MenuValues[56], NULL, -1, -1},
 };
-
+// Items with Action != NULL will need the editAction() to display lower LCD row value!
 #define MENU_POT_CC 10
-#define MENU_BTN_CC 27
-#define MENU_BTN_MODE 44
-#define MENU_KBD_DRIVER 61
-#define MENU_MIN_DYN 62
-#define MENU_MAX_DYNADJ 63
-#define MENU_DYNSLOOPE 64
-#define MENU_BASE_UPR 65
-#define MENU_BASE_LWR 66
-#define MENU_BASE_PED 67
+#define MENU_BTN_CC 15
+#define MENU_BTN_MODE 32
+#define MENU_KBD_DRIVER 49
+#define MENU_MIN_DYN 50
+#define MENU_MAX_DYNADJ 51
+#define MENU_DYNSLOPE 52
+#define MENU_BASE_UPR 53
+#define MENU_BASE_LWR 54
+#define MENU_BASE_PED 55
 
 const int8_t MenuDefaults[MENU_ITEMCOUNT] = {
   1,  // Upper Channel
@@ -187,27 +180,15 @@ const int8_t MenuDefaults[MENU_ITEMCOUNT] = {
   -1,  // Button Assign
   -1,  // Button Mode
   -1,  // End
-  12,  // Pot 1 CC
-  13,  // Pot 2 CC
-  14,  // Pot 3 CC
-  15,  // Pot 4 CC
-  -1,  // Pot 5 CC
-  -1,  // Pot 6 CC
-  -1,  // Pot 7 CC
-  -1,  // Pot 8 CC
-  -1,  // Pot 9 CC
-  -1,  // Pot 10 CC
-  -1,  // Pot 11 CC
-  -1,  // Pot 12 CC
-  -1,  // Pot 13 CC
-  -1,  // Pot 14 CC
-  -1,  // Pot 15 CC
-  -1,  // Pot 16 CC
+  -1,  // Pot 1 CC
+  -1,  // Pot 2 CC
+  -1,  // Pot 3 CC
+  -1,  // Pot 4 CC
   -1,  // Pot CC
-  40,  // Btn 1 CC/Prg
-  41,  // Btn 2 CC/Prg
-  42,  // Btn 3 CC/Prg
-  43,  // Btn 4 CC/Prg
+  -1,  // Btn 1 CC/Prg
+  -1,  // Btn 2 CC/Prg
+  -1,  // Btn 3 CC/Prg
+  -1,  // Btn 4 CC/Prg
   -1,  // Btn 5 CC/Prg
   -1,  // Btn 6 CC/Prg
   -1,  // Btn 7 CC/Prg
@@ -251,6 +232,23 @@ const int8_t MenuDefaults[MENU_ITEMCOUNT] = {
 
 // ------------------------------------------------------------------------------
 
+const String Msg[] = {"FCK TRMP", "FCK AFD"};
+int8_t MenuItemActiveIdx, SubmenuStartIdx, SubmenuEndIdx; // speichert die aktuelle Menüposition, Start- und Endindex des Untermenüs
+int8_t MenuItemReturnIdx;   // speichert bei Untermenüs die Rücksprungposition
+
+
+// ------------------------------------------------------------------------------
+
+
+void initMenuValues() {
+  // Initialisiere MenuValues mit Default-Werten, die in der Excel-Tabelle definiert sind
+  for (uint8_t i = 0; i < MENU_ITEMCOUNT; i++) {
+    MenuValues[i] = MenuDefaults[i]; // wenn Min-Wert definiert ist, nimm diesen als Default, sonst 0
+  }
+}
+
+// ------------------------------------------------------------------------------
+
 menuEntryType currentMenuEntry; // extrahierter Menüpunkt
 
 void getMenuEntry(uint8_t index) {
@@ -265,6 +263,7 @@ uint8_t findSubMenuStartIndex(int8_t submenuLink) {
   for (uint8_t i = m_main_end; i < MENU_ITEMCOUNT; i++) {
     getMenuEntry(i);
     if (currentMenuEntry.submenuLink == submenuLink) {
+      SubmenuStartIdx = i; // speichere Startindex des Submenüs in globaler Variable, damit wir später prüfen können, ob wir uns im Submenü befinden
       return i; // In currentMenuEntry ist jetzt der gefundene Menüpunkt, wir können den Index zurückgeben
     }
   }
@@ -276,6 +275,7 @@ uint8_t findSubMenuEndIndex(int8_t submenuLink) {
   for (int8_t i = MENU_ITEMCOUNT-1; i > m_main_end; i--) {
     getMenuEntry(i);
     if (currentMenuEntry.submenuLink == submenuLink) {
+      SubmenuEndIdx = i; // speichere Endindex des Untermenüs in globaler Variable, damit wir später prüfen können, ob wir uns im Untermenü befinden
       return i; // In currentMenuEntry ist jetzt der gefundene Menüpunkt, wir können den Index zurückgeben 
     }
   }
@@ -287,13 +287,6 @@ bool isSubMenu(int8_t menuIdx) {
   if (menuIdx > m_main_end) return true;
   return false; // nicht gefunden
 }
-
-// ------------------------------------------------------------------------------
-
-const String Msg[] = {"FCK TRMP", "FCK AFD"};
-int8_t MenuItemActive;
-int8_t MenuItemReturn;   // speichert bei Untermenüs die Rücksprungposition
-
 
 
 #endif

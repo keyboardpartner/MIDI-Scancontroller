@@ -4,9 +4,9 @@
 
 ### ATmega328 Project for PlatformIO or Arduino IDE
 
-Fast AVR ATmega328 based scan controller with velocity dynamic scanning for FATAR and PULSE keybeds or non-dynamic scanning of single-contact keybeds with MOS 4014 shift registers. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves min. 2 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes approx. 280 µs plus 80 µs for 25-note bass pedal.
+Fast AVR ATmega328 based scan controller with velocity dynamic scanning for [FATAR TP8/(H)O](https://fatar.com/products/) and [PULSE 6105W keybeds](https://pulsekeyboards.com/organ) keybeds or non-dynamic scanning of single-contact keybeds with MOS 4014 shift registers. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves min. 2 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes approx. 280 µs plus 80 µs for 25-note bass pedal.
 
-Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 and PulseScan interface boards or DIY equivalents, see schematics in */docs* and on http://updates.keyboardpartner.de/Files/index.php?dir=Schematics%20%28Schaltbilder%29.
+Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 and PulseScan interface boards or DIY equivalents, see schematics in */docs* and on [KeyboardPartner Update Server](http://updates.keyboardpartner.de/Files/index.php?dir=Schematics%20%28Schaltbilder%29).
 
 
 In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
@@ -35,6 +35,7 @@ void CreateDynTable(uint8_t mindyn, uint8_t slope) {
  * Faster bit manipulation on ports by inline assembler macros
  * Menu Strings moved to progmem, editable CC numbers
  * Improved support for Panel16 LED Button board, some examples in *main.cpp*
+ * Added scan routine for two [PULSE 6105W keybeds](https://pulsekeyboards.com/organ)
 
 
 C. Meyer 2/2026

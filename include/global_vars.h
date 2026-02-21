@@ -16,7 +16,8 @@
 #include <Arduino.h>
 #include "MenuPanel.h"
 
-#define VERSION "HX3.5 v0.01"
+#define VERSION "ScanCtrl v0.10"
+#define CREATOR "C.Meyer 2/2026"
 
 #define FIRMWARE_VERSION 0x02 // Vergleichswert für EEPROM, um veraltete Versionen zu erkennen
 #define PRESET_VERSION 60 
@@ -35,6 +36,11 @@
 #define FT_TEST  PORTD5
 #define FT_UPR   PIND6
 #define FT_LWR   PIND7
+
+// Fast port bit manipulation macros, Test Pin für Debugging, z.B. mit Oszilloskop
+#define _SET_TEST  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TEST))
+#define _CLR_TEST  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TEST))
+
 // Fast port bit manipulation macros
 #define _SET_FT_CLK   asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
 #define _CLR_FT_CLK   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_CLK))
@@ -132,6 +138,8 @@ MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 //
 // #############################################################################
 
+#ifndef LCD_I2C
+
 uint8_t MenuValues[100];
 
 void initMenuValues() {
@@ -140,6 +148,8 @@ void initMenuValues() {
     MenuValues[i] = 0; // wenn Min-Wert definiert ist, nimm diesen als Default, sonst 0
   }
 }
+
+#endif
 
 struct {
   int8_t keyOffset = 0;

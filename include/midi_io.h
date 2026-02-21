@@ -173,18 +173,20 @@ bool MidiMerge() {
 }
 
 
-void MidiSendNoteOn(uint8_t channel, uint8_t note, uint8_t mididyn) {
+void MidiSendNoteOn(int8_t channel, int8_t note, int8_t mididyn) {
   // Dynamikwert aus Timerwert berechnen, je kleiner der Timerwert, desto größer die Dynamik
+  if (note < 0) return; // ungültige Note, ignorieren
   uint8_t cmd_byte = 0x90 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);
     LastRunningStatusSent = cmd_byte;
   }
   Serial.write(note);  // Key
-  Serial.write(mididyn);   // Dynamik
+  Serial.write(mididyn & 0x7F);   // Dynamik
 }
 
-void MidiSendNoteOnNoDyn(uint8_t channel, uint8_t note) {
+void MidiSendNoteOnNoDyn(int8_t channel, int8_t note) {
+  if (note < 0) return; // ungültige Note, ignorieren
   uint8_t cmd_byte = 0x90 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);
@@ -194,7 +196,8 @@ void MidiSendNoteOnNoDyn(uint8_t channel, uint8_t note) {
   Serial.write(64);   // Dynamik
 }
 
-void MidiSendNoteOff(uint8_t channel, uint8_t note) {
+void MidiSendNoteOff(int8_t channel, int8_t note) {
+  if (note < 0) return; // ungültige Note, ignorieren
   uint8_t cmd_byte = 0x80 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);
@@ -204,8 +207,9 @@ void MidiSendNoteOff(uint8_t channel, uint8_t note) {
   Serial.write(64);   // Off-Dynamik
 }
 
-void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
+void MidiSendController(int8_t channel, int8_t cc, int8_t value) {
   // CC senden
+  if (cc < 0) return; // ungültiger CC, ignorieren
   uint8_t cmd_byte = 0xB0 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
     Serial.write(cmd_byte);
@@ -215,7 +219,7 @@ void MidiSendController(uint8_t channel, uint8_t cc, uint8_t value) {
   Serial.write(value & 0x7F);   // Wert
 }
 
-void MidiSendProgramChange(uint8_t channel, uint8_t value) {
+void MidiSendProgramChange(int8_t channel, int8_t value) {
   // Program Change senden
   uint8_t cmd_byte = 0xC0 + channel - 1;
   if (cmd_byte != LastRunningStatusSent) {
@@ -225,7 +229,7 @@ void MidiSendProgramChange(uint8_t channel, uint8_t value) {
   Serial.write(value & 0x7F);   // Programm number
 }
 
-void MidiSendPitchBend(uint8_t channel, int16_t value) {
+void MidiSendPitchBend(int8_t channel, int16_t value) {
   // Pitch Bend senden, Wert -8192..8191 auf 0..16383 mappen
   uint16_t bend_value = (uint16_t)(value + 8192);
   uint8_t cmd_byte = 0xE0 + channel - 1;
