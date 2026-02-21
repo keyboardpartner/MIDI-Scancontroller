@@ -1,6 +1,6 @@
 # MIDI Scan Controller
 
-![Controller Pic](https://github.com/keyboardpartner/MIDI-Scancontroller/blob/main/docs/ScanFatarContr_02_small.jpg)
+![Controller Pic](https://github.com/keyboardpartner/MIDI-Scancontroller/blob/main/docs/ScanCntrl_kl.JPEG)
 
 ### ATmega328 Project for PlatformIO or Arduino IDE
 
