@@ -53,7 +53,8 @@ public:
   void init(uint8_t mpx_input_count = ANLG_INPUTS, uint8_t active_timeout = MPX_ACTIVE_TIMEOUT, int16_t integrator_factor = MPX_INTEGRATOR_FACTOR);
   void handleMPX(); // in main loop aufrufen, um MPX-Werte zu lesen und MIDI-CCs zu senden
   void resetMPX();
-
+  uint8_t getSwell(); // Schwellerwert separat lesen, da er nicht am MPX, sondern direkt am ADC liegt; ADC muss per resetMPX(); initialisiert sein
+  
   typedef void (*actionCallback)(uint8_t inputIndex, uint8_t value);
   void setChangeAction(actionCallback action) { _changeAction = action; }
 
@@ -79,6 +80,8 @@ private:
   uint8_t _analogMPXactiveTimeout = MPX_ACTIVE_TIMEOUT;
   int16_t _analogMPXintegrator = MPX_INTEGRATOR_FACTOR;
   uint8_t _analogInputSelect = 0; // derzeit ausgewählter analoger Eingang, wird intern hochgezählt, 0.._analogMPXinputCount-1
+
+  uint8_t _swellIntegrated; // Geglättete/integrierter Wert des analogen Eingangs 6 (Swell), wird in getSwell() separat gelesen und integriert, da er nicht über MPX, sondern direkt am ADC liegt
 };
 
 MPXpots::MPXpots(uint8_t mpx_input_count, uint8_t active_timeout, int16_t integrator_factor) {
@@ -90,6 +93,7 @@ void MPXpots::init(uint8_t mpx_input_count, uint8_t active_timeout, int16_t inte
   _analogMPXinputCount = mpx_input_count;
   _analogMPXactiveTimeout = active_timeout;
   _analogMPXintegrator = integrator_factor;
+  _swellIntegrated = 0;
   for (uint8_t i = 0; i < ANLG_INPUTS; i++) {
     _analogInputsIntegrated[i] = 0;
     _analogInputsOld[i] = 0;
@@ -97,6 +101,18 @@ void MPXpots::init(uint8_t mpx_input_count, uint8_t active_timeout, int16_t inte
   }
   resetMPX();
  }
+
+uint8_t MPXpots::getSwell() {
+  // Hier separater Eingang ADC6, nicht über MPX
+  ADMUX = (1<<REFS0)|(1<<ADLAR)|(0x06); //select AVCC as reference and set MUX to pin 6
+  ADCSRA |= (1 << ADSC); // Starte erste Wandlung
+  int16_t oldValue = (int16_t)_swellIntegrated * (_analogMPXintegrator - 1); // Integration mit Faktor 4, alter Wert wird mit 3 gewichtet;
+  while (ADCSRA & (1 << ADSC)); // warte bis erste Wandlung abgeschlossen
+  int16_t newValue = (int16_t)ADCH;
+  newValue =  (newValue + oldValue) / _analogMPXintegrator; // skalierten Wert im Array speichern
+  _swellIntegrated = (uint8_t)newValue;
+  return _swellIntegrated;
+}
 
 
 void MPXpots::clockMPX() {
@@ -140,6 +156,7 @@ void MPXpots::handleMPX() {
   // Muss regelmäßig aufgerufen werden, um die _analogen Eingänge zu scannen und MIDI-CC-Updates zu senden, wenn sich Werte geändert haben
   // Read _analog input ADC7 and shift next MPX bit, send CC if value changed
   // Bei Prescaler 8 und 20 MHz Takt ist die ADC-Wandlung nach etwa 13 ADC-Takten (etwa 5 µs) abgeschlossen
+  ADMUX = (1<<REFS0)|(1<<ADLAR)|(0x07); //select AVCC as reference and set MUX to pin 7
   ADCSRA |= (1 << ADSC); // Starte nächste Wandlung
   // Wandlungszeit nutzen
   int16_t oldValue = (int16_t)_analogInputsIntegrated[_analogInputSelect] * (_analogMPXintegrator - 1); // Integration mit Faktor 4, alter Wert wird mit 3 gewichtet;

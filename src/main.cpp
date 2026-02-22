@@ -19,7 +19,7 @@
 // Define used modules here, comment out unused modules to save program memory
 
 #define LCD_I2C
-#define ANLG_MPX
+#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
 #define PANEL16
 
 #include <Arduino.h>
@@ -54,7 +54,7 @@ bool lcdPresent = false;
 bool panel16Present = false;
 
 #ifdef ANLG_MPX
-  // Für MPX-gestützte analoge Eingänge
+  // Für MPX-gestützte analoge Eingänge und Schweller
   #define ANLG_INPUTS 4 // Analoge Eingänge für MIDI-CC-Potentiometer
   #include "MpxPots.h"
   MPXpots mpxPots(ANLG_INPUTS, MPX_ACTIVE_TIMEOUT, MPX_INTEGRATOR_FACTOR);
@@ -712,10 +712,6 @@ void setup() {
   }
   Timer1.initialize(500); // Timer1 auf 500 us einstellen
   
-  MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
-  MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
-  
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
   
@@ -768,6 +764,10 @@ void setup() {
   configurePorts(MenuValues[MENU_KBD_DRIVER]); // Port Initialisierung je nach Treibertyp
   CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOPE]);
 
+  MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
+  MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
+  
   #ifdef PANEL16
     Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
     if (Wire.endTransmission(true) == 0) {
@@ -798,6 +798,7 @@ void setup() {
 // #############################################################################
 
 void loop() {
+  static uint8_t old_swell = 0;
   while (Timer1Semaphore) {
     // wird alle 500µs neu gesetzt durch Timer1 ISR, hier wird die eigentliche Arbeit erledigt
     Timer1Semaphore--;
@@ -829,8 +830,17 @@ void loop() {
     #endif
 
     #ifdef ANLG_MPX
-      if (Timer1RoundRobin == 4) {
+      if (Timer1RoundRobin == 2) {
         mpxPots.handleMPX(); // muss regelmäßig aufgerufen werden, um Änderungen aller Potis zu erkennen
+      }
+     if (Timer1RoundRobin == 6) {
+        if (MenuValues[m_swell] >= 0) {
+          uint8_t swell = mpxPots.getSwell() / 2; // aktueller Wert des Swell-Pedals, 0..127
+          if (swell != old_swell) {
+            MidiSendController(MenuValues[m_upper_ch], MenuValues[m_swell], swell); // sendet MIDI
+            old_swell = swell;
+          }
+        }
       }
     #endif
   }

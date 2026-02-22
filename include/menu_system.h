@@ -82,7 +82,15 @@ void displayValueLine() {
   // z.B. für Dynamikkurve
   lcd.setCursor(0, 1);
   int8_t item_value = *currentMenuEntry.editValuePtr;
-  lcd.print(item_value);
+  if (currentMenuEntry.menuValueMax == 1) {
+    if (item_value == 0) {
+      lcd.print(F("OFF"));
+    } else {
+      lcd.print(F("ON "));
+    }
+  } else {
+    lcd.print(item_value);
+  }
   lcd.clearEOL(); // Lösche evtl. alte Zeichen
   markEEPROMdifferent();
   lcd.setCursor(3, 1);

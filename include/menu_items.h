@@ -18,7 +18,7 @@
 #include "global_vars.h"
 
 // Menu System Variables
-#define MENU_ITEMCOUNT 57
+#define MENU_ITEMCOUNT 58
 
 int8_t MenuValues[MENU_ITEMCOUNT];
 
@@ -78,6 +78,7 @@ enum {
   m_upper_ch,
   m_lower_ch,
   m_pedal_ch,
+  m_swell,
   m_pitchwheel,
   m_mod_pot,
   m_kbd_driver,
@@ -109,78 +110,80 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Upper Channel", m_upper_ch, &MenuValues[0], NULL, 1, 16},
   {"Lower Channel", m_lower_ch, &MenuValues[1], NULL, 1, 16},
   {"Pedal Channel", m_pedal_ch, &MenuValues[2], NULL, 1, 16},
-  {"Pitchwheel Pot", m_pitchwheel, &MenuValues[3], NULL, -1, 127},
-  {"Modulation Pot", m_mod_pot, &MenuValues[4], NULL, -1, 127},
+  {"Swell CC", m_swell, &MenuValues[3], NULL, -1, 127},
+  {"Pitchwheel Pot", m_pitchwheel, &MenuValues[4], NULL, -1, 127},
+  {"Modulation Pot", m_mod_pot, &MenuValues[5], NULL, -1, 127},
   {"Keyboard", m_kbd_driver, NULL, NULL, -1, -1},
   {"Pot Assign", m_pot_assign, NULL, NULL, -1, -1},
   {"Button Assign", m_btn_assign, NULL, NULL, -1, -1},
   {"Button Mode", m_btn_mode, NULL, NULL, -1, -1},
   {"End", m_main_end, NULL, NULL, -1, -1},
-  {"Pot 1 CC", m_pot_assign, &MenuValues[10], NULL, -1, 127},
-  {"Pot 2 CC", m_pot_assign, &MenuValues[11], NULL, -1, 127},
-  {"Pot 3 CC", m_pot_assign, &MenuValues[12], NULL, -1, 127},
-  {"Pot 4 CC", m_pot_assign, &MenuValues[13], NULL, -1, 127},
+  {"Pot 1 CC", m_pot_assign, &MenuValues[11], NULL, -1, 127},
+  {"Pot 2 CC", m_pot_assign, &MenuValues[12], NULL, -1, 127},
+  {"Pot 3 CC", m_pot_assign, &MenuValues[13], NULL, -1, 127},
+  {"Pot 4 CC", m_pot_assign, &MenuValues[14], NULL, -1, 127},
   {"Pot CC", m_pot_assign, NULL, NULL, -1, -1},
-  {"Btn 1 CC/Prg", m_btn_assign, &MenuValues[15], NULL, -1, 127},
-  {"Btn 2 CC/Prg", m_btn_assign, &MenuValues[16], NULL, -1, 127},
-  {"Btn 3 CC/Prg", m_btn_assign, &MenuValues[17], NULL, -1, 127},
-  {"Btn 4 CC/Prg", m_btn_assign, &MenuValues[18], NULL, -1, 127},
-  {"Btn 5 CC/Prg", m_btn_assign, &MenuValues[19], NULL, -1, 127},
-  {"Btn 6 CC/Prg", m_btn_assign, &MenuValues[20], NULL, -1, 127},
-  {"Btn 7 CC/Prg", m_btn_assign, &MenuValues[21], NULL, -1, 127},
-  {"Btn 8 CC/Prg", m_btn_assign, &MenuValues[22], NULL, -1, 127},
-  {"Btn 9 CC/Prg", m_btn_assign, &MenuValues[23], NULL, -1, 127},
-  {"Btn 10 CC/Prg", m_btn_assign, &MenuValues[24], NULL, -1, 127},
-  {"Btn 11 CC/Prg", m_btn_assign, &MenuValues[25], NULL, -1, 127},
-  {"Btn 12 CC/Prg", m_btn_assign, &MenuValues[26], NULL, -1, 127},
-  {"Btn 13 CC/Prg", m_btn_assign, &MenuValues[27], NULL, -1, 127},
-  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},
-  {"Btn 15 CC/Prg", m_btn_assign, &MenuValues[29], NULL, -1, 127},
-  {"Btn 16 CC/Prg", m_btn_assign, &MenuValues[30], NULL, -1, 127},
+  {"Btn 1 CC/Prg", m_btn_assign, &MenuValues[16], NULL, -1, 127},
+  {"Btn 2 CC/Prg", m_btn_assign, &MenuValues[17], NULL, -1, 127},
+  {"Btn 3 CC/Prg", m_btn_assign, &MenuValues[18], NULL, -1, 127},
+  {"Btn 4 CC/Prg", m_btn_assign, &MenuValues[19], NULL, -1, 127},
+  {"Btn 5 CC/Prg", m_btn_assign, &MenuValues[20], NULL, -1, 127},
+  {"Btn 6 CC/Prg", m_btn_assign, &MenuValues[21], NULL, -1, 127},
+  {"Btn 7 CC/Prg", m_btn_assign, &MenuValues[22], NULL, -1, 127},
+  {"Btn 8 CC/Prg", m_btn_assign, &MenuValues[23], NULL, -1, 127},
+  {"Btn 9 CC/Prg", m_btn_assign, &MenuValues[24], NULL, -1, 127},
+  {"Btn 10 CC/Prg", m_btn_assign, &MenuValues[25], NULL, -1, 127},
+  {"Btn 11 CC/Prg", m_btn_assign, &MenuValues[26], NULL, -1, 127},
+  {"Btn 12 CC/Prg", m_btn_assign, &MenuValues[27], NULL, -1, 127},
+  {"Btn 13 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},
+  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[29], NULL, -1, 127},
+  {"Btn 15 CC/Prg", m_btn_assign, &MenuValues[30], NULL, -1, 127},
+  {"Btn 16 CC/Prg", m_btn_assign, &MenuValues[31], NULL, -1, 127},
   {"Btn CC", m_btn_assign, NULL, NULL, -1, -1},
-  {"Btn 1 Mode", m_btn_mode, &MenuValues[32], &setBtnMode, 0, 3},
-  {"Btn 2 Mode", m_btn_mode, &MenuValues[33], &setBtnMode, 0, 3},
-  {"Btn 3 Mode", m_btn_mode, &MenuValues[34], &setBtnMode, 0, 3},
-  {"Btn 4 Mode", m_btn_mode, &MenuValues[35], &setBtnMode, 0, 3},
-  {"Btn 5 Mode", m_btn_mode, &MenuValues[36], &setBtnMode, 0, 3},
-  {"Btn 6 Mode", m_btn_mode, &MenuValues[37], &setBtnMode, 0, 3},
-  {"Btn 7 Mode", m_btn_mode, &MenuValues[38], &setBtnMode, 0, 3},
-  {"Btn 8 Mode", m_btn_mode, &MenuValues[39], &setBtnMode, 0, 3},
-  {"Btn 9 Mode", m_btn_mode, &MenuValues[40], &setBtnMode, 0, 3},
-  {"Btn 10 Mode", m_btn_mode, &MenuValues[41], &setBtnMode, 0, 3},
-  {"Btn 11 Mode", m_btn_mode, &MenuValues[42], &setBtnMode, 0, 3},
-  {"Btn 12 Mode", m_btn_mode, &MenuValues[43], &setBtnMode, 0, 3},
-  {"Btn 13 Mode", m_btn_mode, &MenuValues[44], &setBtnMode, 0, 3},
-  {"Btn 14 Mode", m_btn_mode, &MenuValues[45], &setBtnMode, 0, 3},
-  {"Btn 15 Mode", m_btn_mode, &MenuValues[46], &setBtnMode, 0, 3},
-  {"Btn 16 Mode", m_btn_mode, &MenuValues[47], &setBtnMode, 0, 3},
+  {"Btn 1 Mode", m_btn_mode, &MenuValues[33], &setBtnMode, 0, 3},
+  {"Btn 2 Mode", m_btn_mode, &MenuValues[34], &setBtnMode, 0, 3},
+  {"Btn 3 Mode", m_btn_mode, &MenuValues[35], &setBtnMode, 0, 3},
+  {"Btn 4 Mode", m_btn_mode, &MenuValues[36], &setBtnMode, 0, 3},
+  {"Btn 5 Mode", m_btn_mode, &MenuValues[37], &setBtnMode, 0, 3},
+  {"Btn 6 Mode", m_btn_mode, &MenuValues[38], &setBtnMode, 0, 3},
+  {"Btn 7 Mode", m_btn_mode, &MenuValues[39], &setBtnMode, 0, 3},
+  {"Btn 8 Mode", m_btn_mode, &MenuValues[40], &setBtnMode, 0, 3},
+  {"Btn 9 Mode", m_btn_mode, &MenuValues[41], &setBtnMode, 0, 3},
+  {"Btn 10 Mode", m_btn_mode, &MenuValues[42], &setBtnMode, 0, 3},
+  {"Btn 11 Mode", m_btn_mode, &MenuValues[43], &setBtnMode, 0, 3},
+  {"Btn 12 Mode", m_btn_mode, &MenuValues[44], &setBtnMode, 0, 3},
+  {"Btn 13 Mode", m_btn_mode, &MenuValues[45], &setBtnMode, 0, 3},
+  {"Btn 14 Mode", m_btn_mode, &MenuValues[46], &setBtnMode, 0, 3},
+  {"Btn 15 Mode", m_btn_mode, &MenuValues[47], &setBtnMode, 0, 3},
+  {"Btn 16 Mode", m_btn_mode, &MenuValues[48], &setBtnMode, 0, 3},
   {"Btn Mode", m_btn_mode, NULL, NULL, -1, -1},
-  {"Kbd Driver", m_kbd_driver, &MenuValues[49], &setKbdDriver, 0, 4},
-  {"Velocity Min", m_kbd_driver, &MenuValues[50], &setDynSlope, 1, 30},
-  {"Velocity MaxAdj", m_kbd_driver, &MenuValues[51], NULL, 0, 20},
-  {"Velocity Slope", m_kbd_driver, &MenuValues[52], &setDynSlope, 1, 40},
-  {"Upper Base", m_kbd_driver, &MenuValues[53], NULL, 12, 60},
-  {"Lower Base", m_kbd_driver, &MenuValues[54], NULL, 12, 60},
-  {"Pedal Base", m_kbd_driver, &MenuValues[55], NULL, 12, 60},
-  {"Keyboard", m_kbd_driver, &MenuValues[56], NULL, -1, -1},
+  {"Kbd Driver", m_kbd_driver, &MenuValues[50], &setKbdDriver, 0, 4},
+  {"Velocity Min", m_kbd_driver, &MenuValues[51], &setDynSlope, 1, 30},
+  {"Velocity MaxAdj", m_kbd_driver, &MenuValues[52], NULL, 0, 20},
+  {"Velocity Slope", m_kbd_driver, &MenuValues[53], &setDynSlope, 1, 40},
+  {"Upper Base", m_kbd_driver, &MenuValues[54], NULL, 12, 60},
+  {"Lower Base", m_kbd_driver, &MenuValues[55], NULL, 12, 60},
+  {"Pedal Base", m_kbd_driver, &MenuValues[56], NULL, 12, 60},
+  {"Keyboard", m_kbd_driver, &MenuValues[57], NULL, -1, -1},
 };
-
 // Items with Action != NULL will need the editAction() to display lower LCD row value!
-#define MENU_POT_CC 10
-#define MENU_BTN_CC 15
-#define MENU_BTN_MODE 32
-#define MENU_KBD_DRIVER 49
-#define MENU_MIN_DYN 50
-#define MENU_MAX_DYNADJ 51
-#define MENU_DYNSLOPE 52
-#define MENU_BASE_UPR 53
-#define MENU_BASE_LWR 54
-#define MENU_BASE_PED 55
+#define MENU_POT_CC 11
+#define MENU_BTN_CC 16
+#define MENU_BTN_MODE 33
+#define MENU_KBD_DRIVER 50
+#define MENU_MIN_DYN 51
+#define MENU_MAX_DYNADJ 52
+#define MENU_DYNSLOPE 53
+#define MENU_BASE_UPR 54
+#define MENU_BASE_LWR 55
+#define MENU_BASE_PED 56
+
 
 const int8_t MenuDefaults[MENU_ITEMCOUNT] = {
   1,  // Upper Channel
   2,  // Lower Channel
   3,  // Pedal Channel
+  -1,  // Swell CC
   -1,  // Pitchwheel Pot
   -1,  // Modulation Pot
   -1,  // Keyboard
@@ -234,9 +237,8 @@ const int8_t MenuDefaults[MENU_ITEMCOUNT] = {
   36,  // Upper Base
   36,  // Lower Base
   36,  // Pedal Base
-  -1,  // Kbd Driver
+  -1,  // Keyboard
 };
-
 
 // ------------------------------------------------------------------------------
 
