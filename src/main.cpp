@@ -17,6 +17,7 @@
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 
 // Define used modules here, comment out unused modules to save program memory
+
 #define LCD_I2C
 #define ANLG_MPX
 #define PANEL16
@@ -26,6 +27,7 @@
 #include <TimerOne.h>
 #include "midi_io.h"
 #include "global_vars.h"
+
 
 
 uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
@@ -61,6 +63,9 @@ bool panel16Present = false;
 #ifdef LCD_I2C
   // Für MenuPanel mit LCD I2C-Interface
   #include "menu_system.h"
+#else
+  // Ohne LCD, z.B. für reinen MIDI-Controller ohne Display
+  #include "menu_items.h"
 #endif
 
 // #############################################################################
@@ -597,6 +602,7 @@ void onPanel16releaseWait() {
 }
 #endif
 
+#ifdef LCD_I2C
 void onMenuButton(uint8_t button) {
   // Callback-Funktion für MenuPanel-Button, liefert gedrückten Button
   handleMenuButtons(button);
@@ -606,6 +612,7 @@ void onMenuEncoder(int16_t delta) {
   // Callback-Funktion für MenuPanel-Encoder, liefert Bewegungsdelta
   handleMenuEncoderChange(delta);
 }
+#endif
 
 // #############################################################################
 

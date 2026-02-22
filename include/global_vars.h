@@ -129,6 +129,8 @@
 
 MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 
+
+
 // #############################################################################
 //
 //    ########   #######     ###    ########  ########  
@@ -141,18 +143,6 @@ MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 //
 // #############################################################################
 
-#ifndef LCD_I2C
-
-uint8_t MenuValues[100];
-
-void initMenuValues() {
-  // Initialisiere MenuValues mit Default-Werten, die in der Excel-Tabelle definiert sind
-  for (uint8_t i = 0; i < 100; i++) {
-    MenuValues[i] = 0; // wenn Min-Wert definiert ist, nimm diesen als Default, sonst 0
-  }
-}
-
-#endif
 
 struct {
   int8_t keyOffset = 0;

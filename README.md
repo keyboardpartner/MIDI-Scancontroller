@@ -8,6 +8,14 @@ Fast AVR ATmega328 based scan controller with velocity dynamic scanning for [FAT
 
 Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 and PulseScan keybed interface boards or DIY equivalents, see schematics in */docs* and on [KeyboardPartner Update Server](http://updates.keyboardpartner.de/Files/index.php?dir=Schematics%20%28Schaltbilder%29).
 
+If not needed, comment out these defines in main.cpp and set defaults in menu_items.h accordingly:
+
+```cpp
+#define LCD_I2C
+#define ANLG_MPX
+#define PANEL16
+```
+
 In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
 **Version Info:**

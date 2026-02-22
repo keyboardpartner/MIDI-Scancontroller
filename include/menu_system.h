@@ -15,6 +15,22 @@
 
 // Menu System für LCD mit I2C-Interface, basierend auf der Menu-Struktur aus Excel-Tabelle
 
+// <submenuLink> definiert die Menüstruktur:
+// Innerhalb des Haupmenüs (submenuLink < m_main_end) 
+// verlinken die Einträge auf Untermenüs (Suche nach gleichnamiger Gruppe).
+// In den Untermenüs (submenuLink > m_main_end) zeigt subMenuLink die
+// Zugehörigkeit zur jeweiligen Gruppe an.
+// <editValuePtr> enthält Zeiger auf die Werte, die bei 
+// Änderung eines Menüeintrags geändert werden sollen, 
+// NULL wenn kein Wert geändert werden soll.
+// <editAction> enthält Zeiger auf Routinen, die bei Änderung eines Menüeintrags
+// ausgeführt werden sollen, z.B. um eine Textanzeige zu aktualisieren oder 
+// um Werte zu berechnen.
+// Ist <menuValueMax> < 0, kann im Hauptmenü ein Submenü aus <submenuLink> aufgerufen werden (<SETTINGS>) 
+// oder, wenn bereits im Submenü, beendet werden (im Submenü <EXIT>)
+// Ist <menuValueMax> > 0, wird der Wert als Integer zwischen min und max angezeigt und kann mit dem Encoder geändert werden.
+// Ist <menuValueMax> = 0, wird kein Wert angezeigt, sondern nur auf Bestätigung <ENTER> gewartet.
+
 #include <Wire.h>
 #include <EEPROM.h>
 #include "MenuPanel.h"

@@ -18,11 +18,11 @@
 #include "global_vars.h"
 
 // Menu System Variables
+#define MENU_ITEMCOUNT 57
 
-// Menu System Variables
+int8_t MenuValues[MENU_ITEMCOUNT];
 
 #define MENU_DRIVERCOUNT 5
-
 enum {drv_sr61, drv_fatar1, drv_fatar2, drv_pulse6105, drv_none};
 
 const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = {
@@ -34,8 +34,8 @@ const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = {
 };
 
 #define MENU_BTNMODECOUNT 4
-
 enum {btnmode_send_cc_val, btnmode_send_cc_evt, btnmode_send_prg_ch, btnmode_send_note};
+
 const lcdTextType ButtonModes[MENU_BTNMODECOUNT] PROGMEM = {
   { "Send CC Val" }, // Sendet CC entsprechend der Zuweisung, bei ON 127, bei OFF 0
   { "Send CC Evt" }, // Sendet immer CC mit 127 bei ON und bei OFF
@@ -52,17 +52,27 @@ void setBtnMode();
 
 
 // ------------------------------------------------------------------------------
-// Hier Daten aus Excel-Tabelle einfügen, die die Menüstruktur definiert.
-// Es müssen 1 enum-Liste und 5 Arrays mit gleicher Länge angelegt werden.
-// MenuLink[MENU_ITEMCOUNT] definiert die Menüstruktur:
-// 0 normaler Edit-Menüpunkt, der mit Encoder geändert werden kann
-// >0 ist die Nummer des Submenüpunktes, zu dem verlinkt wird
-// -1 Rücksprungmöglichkeit (Exit) zum Hauptmenü
-//
-// EditValuePtrs[MENU_ITEMCOUNT] enthält Zeiger auf die Werte, die bei 
+// Hier Daten aus Excel-Tabelle "MIDI_menuItems.xlsx" einfügen
+// ------------------------------------------------------------------------------
+// <submenuLink> definiert die Menüstruktur:
+// Innerhalb des Haupmenüs (submenuLink < m_main_end) 
+// verlinken die Einträge auf Untermenüs (Suche nach gleichnamiger Gruppe).
+// In den Untermenüs (submenuLink > m_main_end) zeigt subMenuLink die
+// Zugehörigkeit zur jeweiligen Gruppe an.
+// <editValuePtr> enthält Zeiger auf die Werte, die bei 
 // Änderung eines Menüeintrags geändert werden sollen, 
 // NULL wenn kein Wert geändert werden soll.
+// <editAction> enthält Zeiger auf Routinen, die bei Änderung eines Menüeintrags
+// ausgeführt werden sollen, z.B. um eine Textanzeige zu aktualisieren oder 
+// um Werte zu berechnen.
+// Ist <menuValueMax> < 0, kann im Hauptmenü ein Submenü aus <submenuLink> aufgerufen werden (<SETTINGS>) 
+// oder, wenn bereits im Submenü, beendet werden (im Submenü <EXIT>)
+// Ist <menuValueMax> > 0, wird der Wert als Integer zwischen min und max angezeigt und kann mit dem Encoder geändert werden.
+// Ist <menuValueMax> = 0, wird kein Wert angezeigt, sondern nur auf Bestätigung <ENTER> gewartet.
 // ------------------------------------------------------------------------------
+
+// Alle vorhandenen Menü-Links und Gruppennamen müssen hier aufgelistet werden, 
+// damit sie in der Tabelle <MenuItems> verwendet werden können:
 
 enum {
   m_upper_ch,
@@ -75,10 +85,9 @@ enum {
   m_btn_assign,
   m_btn_mode,
   m_main_end,
-}; // alle vorhandenen Menü-Links
+};
 
-
-// Action-Routine über Tabelle
+// Action-Routine über Tabelle, ohne Parameter
 typedef void (*action)();
 
 // Bei mehr als 127 Menüpunkten müssen die Datentypen in menuEntryType angepasst werden
@@ -91,8 +100,6 @@ typedef struct {
   int8_t menuValueMax;
 } menuEntryType;
 
-#define MENU_ITEMCOUNT 57
-int8_t MenuValues[MENU_ITEMCOUNT];
 
 // Diese Tabelle enthält die Menüstruktur, die in der Excel-Tabelle HX35_menuItems.xlsx definiert ist
 // Menü-Text, Link zu Untermenüs, Zeiger auf Werte, die bei Änderung geändert werden sollen, 
@@ -157,6 +164,7 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Pedal Base", m_kbd_driver, &MenuValues[55], NULL, 12, 60},
   {"Keyboard", m_kbd_driver, &MenuValues[56], NULL, -1, -1},
 };
+
 // Items with Action != NULL will need the editAction() to display lower LCD row value!
 #define MENU_POT_CC 10
 #define MENU_BTN_CC 15
