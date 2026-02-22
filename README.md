@@ -4,10 +4,9 @@
 
 ### ATmega328 Project for PlatformIO or Arduino IDE
 
-Fast AVR ATmega328 based scan controller with velocity dynamic scanning for [FATAR TP8/(H)O](https://fatar.com/products/) and [PULSE 6105W](https://pulsekeyboards.com/organ) keybeds or non-dynamic scanning of single-contact keybeds with MOS 4014 shift registers. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves net 4.5 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes max. 205 µs plus 80 µs for 25-note bass pedal. Scan rate slowed down to 2 kHz per timer 1 ISR semaphore to yield time for button and menu processing.
+Fast AVR ATmega328 based scan controller with velocity dynamic scanning for [FATAR TP8/(H)O](https://fatar.com/products/) and [PULSE 6105W](https://pulsekeyboards.com/organ) keybeds or non-dynamic scanning of single-contact keybeds with MOS 4014 shift registers. Comes with velocity slope control and menu system (if equipped with KeyboardPartner MenuPanel). Achieves net 4.5 kHz scan rate, scanning of 2 keybeds (upper and lower manual) takes max. 205 µs plus 80 µs for 25-note bass pedal. Scan rate slowed down to 2 kHz per timer 1 ISR semaphore to yield time for button and menu processing. Design is not critical; cable lengths of up to 1m in total between controller and keybed(s) are allowed.
 
-Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 and PulseScan interface boards or DIY equivalents, see schematics in */docs* and on [KeyboardPartner Update Server](http://updates.keyboardpartner.de/Files/index.php?dir=Schematics%20%28Schaltbilder%29).
-
+Designed for KeyboardPartner Scan61, FatarScan2 or new FatarScan1-61 and PulseScan keybed interface boards or DIY equivalents, see schematics in */docs* and on [KeyboardPartner Update Server](http://updates.keyboardpartner.de/Files/index.php?dir=Schematics%20%28Schaltbilder%29).
 
 In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
@@ -36,7 +35,7 @@ void CreateDynTable(uint8_t mindyn, uint8_t slope) {
  * Menu Strings moved to progmem, editable CC numbers
  * Improved support for Panel16 LED Button board, some examples in *main.cpp*
  * Added scan routine for two [PULSE 6105W keybeds](https://pulsekeyboards.com/organ)
- * Simplified state machines and speed-up of scanning to 155µs (FatarScan2 interface) resp. 205µs (FatarScan1-61 and Pulse 6105W interfaces)
+ * Simplified state machines and speed-up of scanning to 155µs (FatarScan2 interface), 176µs (FatarScan1-61) or 205µs (Pulse 6105W)
 
 
 C. Meyer 2/2026

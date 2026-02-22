@@ -233,7 +233,9 @@ void ScanPedal() {
 void ScanManualsFatar1_Pulse6105() {
   // Upper und Lower scannen, auch für PULSE 6105WF mit gleicher Pinbelegung wie FATARSCAN,
   // aber mit prePulses und anderem scankey-Startwert
-  // Zeitbedarf für beide 61er Manuale etwa 205µs bei 20 MHz Takt, 257µs bei 16 MHz
+  // Zeitbedarf für Abfrage beider 61er Manuale: 
+  // FatarScan1-61: etwa 176µs bei 20 MHz Takt, 220µs bei 16 MHz
+  // Pulse 6105W:   etwa 205µs bei 20 MHz Takt, 257µs bei 16 MHz (wg. Pre-Pulses langsamer)
    AnyKeyPressed = false;
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
@@ -297,7 +299,8 @@ void ScanManualsFatar1_Pulse6105() {
 
 void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
-  // Zeitbedarf für beide 61er Manuale etwa 155µs bei 20 MHz Takt, 195µs bei 16 MHz
+  // Zeitbedarf für Abfrage beider 61er Manuale:
+  // etwa 155µs bei 20 MHz Takt, 195µs bei 16 MHz
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
@@ -321,7 +324,7 @@ void ScanManualsFatar2() {
       // Increment Sense Counter
       // Überlauf ist schon für nächste Gruppe, da der 4024 weiter durchläuft
       _SET_FT_SENSE_INC;
-      AnyKeyPressed = AnyKeyPressed | pin_d; // Pulsdauer für 4024 Increment
+      AnyKeyPressed = AnyKeyPressed | pin_d; // Pulsdauer für 4024 Increment nutzen
       _CLR_FT_SENSE_INC;
       // Settle Time nutzen zur Auswertung der Kontakte
       if ((CommonKeyState[scankey] != pin_d) | pin_d) {
