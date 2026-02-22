@@ -1,1 +1,0 @@
-copy .\.pio\build\ATmega328P_20MHz_USBasp\firmware.hex firmware.hex

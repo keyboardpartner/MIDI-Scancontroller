@@ -1,1 +1,0 @@
-copy .\.pio\build\ATmega328P_16MHz\firmware.hex firmware.hex
