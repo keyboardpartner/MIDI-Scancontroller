@@ -19,7 +19,7 @@
 #define VERSION "ScanCtrl v0.10"
 #define CREATOR "C.Meyer 2/2026"
 
-#define FIRMWARE_VERSION 0x03   // Vergleichswert für EEPROM, um veraltete Versionen zu erkennen
+#define FIRMWARE_VERSION 0x01   // Vergleichswert für EEPROM, um veraltete Versionen zu erkennen
 
 #define EEPROM_VERSION_IDX 0x08 // Adresse des Vergleichwerts
 #define EEPROM_MENUDEF_IDX 0x10 // Startadresse im EEPROM für gespeicherte Werte#define VERSION "ScanCtrl 0.9"

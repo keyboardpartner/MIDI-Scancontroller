@@ -576,15 +576,10 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
     // Pot ist Pitchwheel, sendet Pitch Bend Change, Wert 0..127 wird auf -8192..8191 gemappt
     int16_t pitch_value = ((int16_t)value - 64) * 128; // Wert von 0..127 auf -8192..8191 mappen
     MidiSendPitchBend(MenuValues[m_upper_ch], pitch_value);
-  } else if (inputIndex == MenuValues[m_mod_pot]) {
-    // Pot ist Modulation, sendet Modulation Wheel CC, Wert 0..127 direkt senden
-    MidiSendController(MenuValues[m_upper_ch], 1, value);
-  } else {
-    // andere Potentiometer senden MIDI CC, Kanal und CC-Nummer aus MenuValues, Wert 0..127 direkt senden
+  } else if (MenuValues[MENU_POT_CC + inputIndex] >= 0) {
+    // andere Potentiometer senden MIDI CC-Nummer aus MenuValues, Wert 0..127 direkt senden
     // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
-    if (MenuValues[10 + inputIndex] >= 0) {
-      MidiSendController(MenuValues[m_upper_ch], MenuValues[10 + inputIndex], value); // Volume Upper
-    }
+    MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_POT_CC + inputIndex], value); // Volume Upper
   }
 }
 #endif
@@ -705,12 +700,12 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
+  Timer1.initialize(500); // Timer1 auf 500 us einstellen
   if (MenuValues[MENU_KBD_DRIVER] >= drv_fatar1) {
     Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
   } else {
     Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
   }
-  Timer1.initialize(500); // Timer1 auf 500 us einstellen
   
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz
