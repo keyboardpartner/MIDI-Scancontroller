@@ -127,7 +127,7 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Btn 11 CC/Prg", m_btn_assign, &MenuValues[25], NULL, -1, 127},
   {"Btn 12 CC/Prg", m_btn_assign, &MenuValues[26], NULL, -1, 127},
   {"Btn 13 CC/Prg", m_btn_assign, &MenuValues[27], NULL, -1, 127},
-  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},ä
+  {"Btn 14 CC/Prg", m_btn_assign, &MenuValues[28], NULL, -1, 127},
   {"Btn 15 CC/Prg", m_btn_assign, &MenuValues[29], NULL, -1, 127},
   {"Btn 16 CC/Prg", m_btn_assign, &MenuValues[30], NULL, -1, 127},
   {"Btn CC", m_btn_assign, NULL, NULL, -1, -1},

@@ -30,6 +30,8 @@
 
 uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
 uint8_t LowerKeyState[KEYS]; // Zustand der Tasten
+uint8_t CommonKeyState[KEYS]; // Zustand der Tasten Upper und Lower
+
 uint8_t PedalContactState[PEDALKEYS]; // Zustand der Pedaltasten
 uint8_t AnyKeyPressed = false;
 
@@ -112,11 +114,6 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
     }
     break;
   case t_pressed:
-    if (!mk) {
-      // Make-Kontakt offen, Taste bewegt sich zurück
-      UpperKeyState[scankey] = t_reverse;
-    }
-    break;
   case t_reverse:
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
@@ -165,11 +162,6 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
     }
     break;
   case t_pressed:
-    if (!mk) {
-      // Make-Kontakt offen, Taste bewegt sich zurück
-      LowerKeyState[scankey] = t_reverse;
-    }
-    break;
   case t_reverse:
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
@@ -241,16 +233,17 @@ void ScanPedal() {
 void ScanManualsFatar1_Pulse6105() {
   // Upper und Lower scannen, auch für PULSE 6105WF mit gleicher Pinbelegung wie FATARSCAN,
   // aber mit prePulses und anderem scankey-Startwert
-  // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
-  // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
-  AnyKeyPressed = false;
+  // Zeitbedarf für beide 61er Manuale etwa 205µs bei 20 MHz Takt, 257µs bei 16 MHz
+   AnyKeyPressed = false;
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
-  uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
+  uint8_t mk, br;
+  uint8_t contacts_br, contacts_mk; // aktuelle Tasten Upper und Lower, für CommonKeyState
   uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
   PORTD = portd_idle;  // zurück zu idle
-  int8_t scankey = 0; // aktuelle Taste
+  int8_t scankey = 0;  // aktuelle Taste
+  
   if (scanParams.keyOffset != 0) {
     scankey = KEYS - scanParams.keyOffset; // aktuelle Taste
   }
@@ -261,33 +254,39 @@ void ScanManualsFatar1_Pulse6105() {
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
       if (pulsecount == 0) {
         // erstes Bit mit LOAD laden, danach Taktung für nächste Bits
-        _CLR_FT_LOAD; // FT_LOAD auf LOW
+        _CLR_FT_LOAD; // FT_LOAD auf LOW, aktiv!
         _SET_FT_CLK;  // FT_CLK auf HIGH
         PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
         for (int8_t i = 0; i < scanParams.prePulses; i++) {
           _SET_FT_CLK;  // FT_CLK auf HIGH
-          _CLR_FT_CLK;  // FT_CLK auf LOW
+          PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
         }
       } else {
         // erstes Bit
         _SET_FT_CLK;  // FT_CLK auf HIGH
-        _CLR_FT_CLK;  // FT_CLK auf LOW
+        PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
       }
       // jetzt liegt das MK-Bit an FT_UPR und FT_LWR an
       // Berechnung ist auch eine kleine Pause zum Settle des Eingangspins:
       if (scankey >= KEYS) scankey = scankey - KEYS; // Modulo bis zur maximalen Tastenzahl
       // scankey = scankey & 0x3F; // ginge auch, aber nur für 61er Tastaturen
-      mk_upr = PIND & (1 << FT_UPR); // Make-Kontakt Upper lesen
-      mk_lwr = PIND & (1 << FT_LWR); // Make-Kontakt Lower lesen
+      contacts_mk = PIND & FT_CONT_MASK1; // Make-Kontakte Upper und Lower lesen
       // BR-Bit(s) einlesen
       _SET_FT_CLK;  // FT_CLK auf HIGH
-      _CLR_FT_CLK;  // FT_CLK auf LOW
-      AnyKeyPressed = AnyKeyPressed | br_lwr | br_upr; // kleine Pause zum Settle, WICHTIG!
-      // asm volatile ("nop");
-      br_upr = PIND & (1 << FT_UPR); // Break-Kontakt Upper lesen
-      br_lwr = PIND & (1 << FT_LWR); // Break-Kontakt Lower lesen
-      UpperCheckstate(scankey, mk_upr, br_upr);
-      LowerCheckstate(scankey, mk_lwr, br_lwr);
+      PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
+      AnyKeyPressed = AnyKeyPressed | contacts_mk; // kleine Pause zum Settle, WICHTIG!
+      contacts_br = PIND & FT_CONT_MASK1; // Make-Kontakte Upper und Lower lesen
+      // Binäres ODER ist deutlich schnell1er als logisches ODER, deshalb hier mit Bitmasken arbeiten
+      // Pointer statt Array-Zugriff ist dagegen NICHT schneller!
+      if ((CommonKeyState[scankey] != (contacts_mk | contacts_br)) | contacts_br | contacts_mk) {
+        mk = contacts_mk & (1 << FT_UPR); // Make-Kontakt Upper lesen
+        br = contacts_br & (1 << FT_UPR); // Break-Kontakt Upper lesen
+        UpperCheckstate(scankey, mk, br);
+        mk = contacts_mk & (1 << FT_LWR); // Make-Kontakt Lower lesen
+        br = contacts_br & (1 << FT_LWR); // Break-Kontakt Lower lesen
+        LowerCheckstate(scankey, mk, br);
+        CommonKeyState[scankey] = contacts_mk | contacts_br; // Zustand der Taste in beiden Manuals
+      }
       scankey += KEYS_PER_GROUP;
     }
     scankey++;
@@ -298,13 +297,12 @@ void ScanManualsFatar1_Pulse6105() {
 
 void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
-  // Zeitbedarf für ZWEI 61er Manuale etwa 200 us bei 20 MHz Takt, 250 us bei 16 MHz
-  // Zeitbedarf für EIN 61er Manual etwa 150 us bei 20 MHz Takt, 190 us bei 16 MHz
+  // Zeitbedarf für beide 61er Manuale etwa 155µs bei 20 MHz Takt, 195µs bei 16 MHz
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
   AnyKeyPressed = false;
-  uint8_t mk_upr, br_upr, mk_lwr, br_lwr;
+  uint8_t mk, br, pin_d;
   uint8_t scankey = 0; // aktuelle Taste
   // Reset des 4017 T-Drive Counters
   // Reset des 4024 Sense Counters
@@ -319,18 +317,22 @@ void ScanManualsFatar2() {
     for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
       if (scankey >= KEYS) scankey = scankey - KEYS; // Modulo bis zur maximalen Tastenzahl
       // scankey = scankey & 0x3F; // ginge auch, aber nur für 61er Tastaturen
-      mk_upr = PIND & (1 << MK_UPR); // Make-Kontakt Upper lesen
-      mk_lwr = PIND & (1 << MK_LWR); // Make-Kontakt Lower lesen
-      br_upr = PINB & (1 << BR_UPR); // Break-Kontakt Upper lesen, hier Port B!
-      br_lwr = PIND & (1 << BR_LWR); // Break-Kontakt Lower lesen
+      pin_d = (PIND & FT_CONT_MASK2) | (PINB & (1 << BR_UPR)); // relevante Pins von Port B und D lesen
       // Increment Sense Counter
       // Überlauf ist schon für nächste Gruppe, da der 4024 weiter durchläuft
       _SET_FT_SENSE_INC;
-      AnyKeyPressed = AnyKeyPressed | br_lwr | br_upr; // Pulsdauer für 4024 Increment
+      AnyKeyPressed = AnyKeyPressed | pin_d; // Pulsdauer für 4024 Increment
       _CLR_FT_SENSE_INC;
       // Settle Time nutzen zur Auswertung der Kontakte
-      UpperCheckstate(scankey, mk_upr, br_upr);
-      LowerCheckstate(scankey, mk_lwr, br_lwr);
+      if ((CommonKeyState[scankey] != pin_d) | pin_d) {
+        mk = pin_d & (1 << MK_UPR); // Make-Kontakt Upper lesen
+        br = pin_d & (1 << BR_UPR); // Break-Kontakt Upper lesen, hier Port B!
+        UpperCheckstate(scankey, mk, br);
+        mk = pin_d & (1 << MK_LWR); // Make-Kontakt Lower lesen
+        br = pin_d & (1 << BR_LWR); // Break-Kontakt Lower lesen
+        LowerCheckstate(scankey, mk, br);
+        CommonKeyState[scankey] = pin_d; // Zustand der Taste in beiden Manuals
+      }
       scankey += KEYS_PER_GROUP;
     }
     // Letzte Taste in der Sense-Gruppe, danach T-Drive inkrementieren
@@ -487,6 +489,7 @@ void configurePorts(uint8_t driverType) {
   for (uint8_t i = 0; i < KEYS; i++) {
     UpperKeyTimer[i] = 255;
     LowerKeyTimer[i] = 255;
+    CommonKeyState[i] = 0;
   }
   // Initialisierung der Pedal-Kontaktzustände
   for (uint8_t i = 0; i < PEDALKEYS; i++) {

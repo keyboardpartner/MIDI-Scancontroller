@@ -36,6 +36,7 @@
 #define FT_TEST  PORTD5
 #define FT_UPR   PIND6
 #define FT_LWR   PIND7
+#define FT_CONT_MASK1 ((1 << FT_UPR) | (1 << FT_LWR))
 
 // Fast port bit manipulation macros, Test Pin für Debugging, z.B. mit Oszilloskop
 #define _SET_TEST  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (FT_TEST))
@@ -56,6 +57,8 @@
 #define FT_TDRV_RST  PORTD5
 #define BR_LWR   PIND6
 #define MK_LWR   PIND7
+#define FT_CONT_MASK2 ((1 << MK_UPR) | (1 << BR_LWR) | (1 << MK_LWR)) // ohne BR_UPR, da dieser bei FATAR 2 auf Port B liegt, während die anderen Kontakte auf Port D liegen
+
 // Fast port bit manipulation macros
 #define _SET_FT_SENSE_INC  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
 #define _CLR_FT_SENSE_INC  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTB)), "I" (FT_SENSE_INC))
