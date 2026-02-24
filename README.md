@@ -16,7 +16,8 @@ If not needed, comment out these defines in main.cpp and set defaults in menu_it
 #define PANEL16
 ```
 
-In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
+In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. To use the 20 MHz version, install MiniCore in the Arduino IDE (Board Manager), then select "ATmega328P (MiniCore)" as board and "20 MHz external" as clock speed. 
+Then burn the bootloader to set the fuses for 20 MHz operation. After that you can upload the sketch with the regular Arduino bootloader method -- no special programmer needed. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
 **Version Info:**
  * New approach for velocity table with variable slope:

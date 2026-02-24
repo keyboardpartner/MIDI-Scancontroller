@@ -15,11 +15,15 @@
 // https://patorjk.com/software/taag/#p=display&f=Banner&t=MAIN&x=cppComment&v=4&h=2&w=80&we=false
 // 20 MHz Bootloaders:
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
+//
+// To use the 20 MHz version, install MiniCore in the Arduino IDE, then select "ATmega328P (MiniCore)" as board and "20 MHz external" as clock speed. 
+// Then burn the bootloader to set the fuses for 20 MHz operation. After that you can select "ATmega328P_20MHz" as environment and 
+// upload the sketch with the regular Arduino bootloader method -- no special programmer needed.
 
 // Define used modules here, comment out unused modules to save program memory
 
 #define LCD_I2C
-#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
+//#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
 #define PANEL16
 
 #include <Arduino.h>
@@ -450,6 +454,7 @@ void configurePorts(uint8_t driverType) {
       }
       scanParams.prePulses = 0; 
       scanParams.keyOffset = 0; 
+      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
       break;
     case drv_fatar2:
       // FATAR Scan Controller 2
@@ -464,6 +469,7 @@ void configurePorts(uint8_t driverType) {
       }
       scanParams.prePulses = 0; 
       scanParams.keyOffset = 0; 
+      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
       break;
     case drv_pulse6105:
       // Pulse 6105WF Scan Controller
@@ -478,6 +484,7 @@ void configurePorts(uint8_t driverType) {
       }
       scanParams.prePulses = 6; 
       scanParams.keyOffset = 3; 
+      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
       break;
     case drv_sr61:
     default:
@@ -493,6 +500,7 @@ void configurePorts(uint8_t driverType) {
       }
       scanParams.prePulses = 0; 
       scanParams.keyOffset = 0; 
+      Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
   }
   for (uint8_t i = 0; i < KEYS; i++) {
     UpperKeyTimer[i] = 255;
@@ -701,11 +709,6 @@ void setup() {
   
   Timer1.attachInterrupt(timer1SemaphoreISR); // timer1SemaphoreISR to run every 0.5 milliseconds
   Timer1.initialize(500); // Timer1 auf 500 us einstellen
-  if (MenuValues[MENU_KBD_DRIVER] >= drv_fatar1) {
-    Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
-  } else {
-    Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
-  }
   
   Wire.begin();
   Wire.setClock(400000UL);  // 400kHz

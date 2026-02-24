@@ -47,7 +47,7 @@ void CreateDynTable(uint8_t mindyn, uint8_t slope) {
 
 // Simple MIDI-Merge-Funktion mit Running Status Unterstützung
 // Wartet kompletten MIDI-Befehl einschließlich Datenbytes ab und
-// sendet diese, bevor es zurückkehrt
+// sendet diese sofort wieder aus, bevor es zurückkehrt
 
 
 uint8_t MidiDataCounter = 0;
@@ -77,7 +77,12 @@ void MidiDiscardSysEx() {
 }
 
 bool MidiMerge() {
-  uint8_t  midi_in;
+  // NOCH NICHT GETESTET
+  // Könnte in manchen Situationen hängen, wenn z.B. ein laufender SysEx-Befehl nicht vollständig ankommt
+  // Es wird davon ausgegangen, dass die MIDI-Übertragung vollständig ist, wenn nach 50 ms kein neues Byte mehr ankommt. 
+  // Das sollte für die meisten MIDI-Befehle ausreichend sein, außer bei sehr langsamen Übertragungen oder wenn ein SysEx-Befehl 
+  // mitten in der Übertragung abbricht. In diesem Fall könnte die Funktion hängen bleiben, bis der Timeout erreicht ist.
+  uint8_t midi_in;
   bool midi_handled, databytes_handled, midi_timeout;
 
   if (Serial.available()) {
