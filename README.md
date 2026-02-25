@@ -18,7 +18,7 @@ If not needed, comment out these defines in main.cpp and set defaults in menu_it
 
 ### PlatformIO
 
-Just download the ZIP (dropdown menu in green **<> Code** button above) and unpack on your harddisk (or clone project if you installed *Git*). Open this folder in VScode/PlatformIO. There are some environments provided for different MCU speeds and to flash an OptiBoot bootloader with USBasp stick. With bootloader installed, use the *[env:ATmega328P_20MHz]* environment.
+Just download the ZIP (dropdown menu in green **<> Code** button above) and unpack on your harddisk (or clone project if you installed *Git*). Open this folder in VScode/PlatformIO. There are some environments provided for different MCU speeds and to flash an OptiBoot bootloader with USBasp stick. With bootloader installed, use the *[env:ATmega328P_20MHz]* environment to upload the firmware to your ATmega328(P).
 
 ### Arduino IDE
 
