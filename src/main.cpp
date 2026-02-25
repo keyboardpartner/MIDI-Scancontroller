@@ -16,10 +16,6 @@
 // 20 MHz Bootloaders:
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 //
-// To use the 20 MHz version, install MiniCore in the Arduino IDE, then select "ATmega328P (MiniCore)" as board and "20 MHz external" as clock speed. 
-// Then burn the bootloader to set the fuses for 20 MHz operation. After that you can select "ATmega328P_20MHz" as environment and 
-// upload the sketch with the regular Arduino bootloader method -- no special programmer needed.
-
 
 // Define used modules here, comment out unused modules to save program memory
 
@@ -604,38 +600,8 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
 void onPanel16releaseWait() {
   scanKeybeds();
 }
-#endif
 
-#ifdef LCD_I2C
-void onMenuButton(uint8_t button) {
-  // Callback-Funktion für MenuPanel-Button, liefert gedrückten Button
-  handleMenuButtons(button);
-}
-
-void onMenuEncoder(int16_t delta) {
-  // Callback-Funktion für MenuPanel-Encoder, liefert Bewegungsdelta
-  handleMenuEncoderChange(delta);
-}
-#endif
-
-// #############################################################################
-
-void blinkLED(uint8_t times) {
-  // Board-LED blinkt zur Bestätigung von Aktionen, z.B. Speichern von Werten im EEPROM
-  for (uint8_t i=0; i<times; i++) {
-    digitalWrite(LED_PIN, LOW); // sets the LED on
-    delay(150);
-    digitalWrite(LED_PIN, HIGH);  // sets the LED off
-    delay(150);
-  }
-}
-
-// ------------------------------------------------------------------------------
-
-#ifdef PANEL16
-void handlePanel16(uint8_t row) {
-  // Panel16-Handling, hier werden Tasten einer Reihe abgefragt und LEDs gesetzt
-  uint8_t bnt_number = panel16.getButtonRow(row); // benötigt etwa 550 µs für Button-Abfrage bei 400 kHz
+void onPanel16press(uint8_t bnt_number) {
   if (bnt_number != 0xFF) {
     int8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
     int8_t btn_cc = MenuValues[MENU_BTN_CC + bnt_number];
@@ -676,6 +642,29 @@ void handlePanel16(uint8_t row) {
 }
 #endif
 
+#ifdef LCD_I2C
+void onMenuButton(uint8_t button) {
+  // Callback-Funktion für MenuPanel-Button, liefert gedrückten Button
+  handleMenuButtons(button);
+}
+
+void onMenuEncoder(int16_t delta) {
+  // Callback-Funktion für MenuPanel-Encoder, liefert Bewegungsdelta
+  handleMenuEncoderChange(delta);
+}
+#endif
+
+// #############################################################################
+
+void blinkLED(uint8_t times) {
+  // Board-LED blinkt zur Bestätigung von Aktionen, z.B. Speichern von Werten im EEPROM
+  for (uint8_t i=0; i<times; i++) {
+    digitalWrite(LED_PIN, LOW); // sets the LED on
+    delay(150);
+    digitalWrite(LED_PIN, HIGH);  // sets the LED off
+    delay(150);
+  }
+}
 
 
 // #############################################################################
@@ -772,6 +761,7 @@ void setup() {
     if (Wire.endTransmission(true) == 0) {
       panel16Present = true;
       panel16.begin();
+      panel16.setPressCallback(onPanel16press); 
       panel16.setWaitCallback(onPanel16releaseWait); // Callback-Funktion für Button-Handling registrieren
       for (uint8_t i = 0; i < 16; i++) {
         panel16.setLEDstate(i, panel16.btnModeToLED[MenuValues[MENU_BTN_MODE + i]]); // LEDs anhand ButtonMode setzen
@@ -816,14 +806,11 @@ void loop() {
     #ifdef PANEL16
       // Test für Panel16 Button-Abfrage
       if (panel16Present) {
-        if (Timer1RoundRobin == 4) {
-          panel16.updateBlinkLEDs(); // muss regelmäßig für blinkende LEDs aufgerufen werden
-        }
         if (Timer1RoundRobin == 8) {
-          handlePanel16(0); // aus Zeitgründen in zwei Hälften aufteilen
+          panel16.checkRow(0); // aus Zeitgründen in zwei Hälften aufteilen
         }
         if (Timer1RoundRobin == 12) {
-          handlePanel16(1); // aus Zeitgründen in zwei Hälften aufteilen
+          panel16.checkRow(1); // aus Zeitgründen in zwei Hälften aufteilen
         }
       }
     #endif

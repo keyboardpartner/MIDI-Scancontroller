@@ -25,7 +25,7 @@
 
 #ifdef HX35_BOARD
   // HX35-Board mit ATmega1284P: Encoder an PA0, PA1, Bit 0 und 1
-  #define ENC_STATE_BITS (PINA & B00000011) // Nur die beiden relevanten Bits lesen und nach rechts verschieben
+  #define ENC_STATE_BITS (PINA & B00000011) // Nur die beiden relevanten Bits lesen
 #else
   // Scancontoller mit ATmega328P: Encoder an PC2, PC3, Bit 2 und 3
   #define ENC_STATE_BITS ((PINC & B00001100) >> 2) // Nur die beiden relevanten Bits lesen und nach rechts verschieben
