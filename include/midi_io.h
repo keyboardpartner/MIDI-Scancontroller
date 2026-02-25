@@ -15,6 +15,7 @@
 #define MIDI_IO_H
 
 #include <Arduino.h>
+#include "global_vars.h"
 
 uint8_t TimeToDyn[256]; // Lookup-Tabelle Zeitwert -> Dynamikwert
 

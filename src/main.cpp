@@ -30,7 +30,6 @@
 #include "global_vars.h"
 
 
-
 uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
 uint8_t LowerKeyState[KEYS]; // Zustand der Tasten
 uint8_t CommonKeyState[KEYS]; // Zustand der Tasten Upper und Lower
@@ -45,6 +44,7 @@ volatile uint8_t Timer1Semaphore = 0;
 volatile uint8_t Timer1RoundRobin = 0;
 
 bool lcdPresent = false;
+
 
 #ifdef PANEL16
   // Für LCD mit I2C-Interface
@@ -161,7 +161,7 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
         // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
         LowerKeyState[scankey] = t_pressed;
         MidiSendNoteOn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey, MenuValues[MENU_MIN_DYN]);  // sende MIDI NoteOn mit Dynamikwert
-     }
+      }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
       LowerKeyState[scankey] = t_reverse;
@@ -212,6 +212,7 @@ void ScanPedal() {
       if (mk_ped == 0) {
         // Pedal gedrückt, NoteOn mit fester Dynamik
         MidiSendNoteOnNoDyn(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
+        ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
       } else {
         // Pedal losgelassen
         MidiSendNoteOff(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
@@ -584,7 +585,8 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
   } else if (MenuValues[MENU_POT_CC + inputIndex] >= 0) {
     // andere Potentiometer senden MIDI CC-Nummer aus MenuValues, Wert 0..127 direkt senden
     // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
-    MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_POT_CC + inputIndex], value); // Volume Upper
+   ledTimerStart(20); // Board-LED für 50 Timer-Zyklen einschalten
+   MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_POT_CC + inputIndex], value); // Volume Upper
   }
 }
 #endif
@@ -599,46 +601,44 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
 
 void onPanel16releaseWait() {
   scanKeybeds();
+  yield();
+  tickerObject.update();
 }
 
 void onPanel16press(uint8_t bnt_number) {
-  if (bnt_number != 0xFF) {
-    int8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
-    int8_t btn_cc = MenuValues[MENU_BTN_CC + bnt_number];
-    switch (MenuValues[MENU_BTN_MODE + bnt_number]) {
-      case btnmode_send_cc_val:
-        // Button Mode 0 = Toggle, sendet MIDI-CC mit 127 bei ON und 0 bei OFF
-        MidiSendController(MenuValues[m_upper_ch], btn_cc, btn_onoff);
-        panel16.toggleLEDstate(bnt_number);
-        break;
-      case btnmode_send_cc_evt:
-        // Button Mode 1 = Event, sendet immer MIDI-CC mit 127 bei ON und bei OFF
-        MidiSendController(MenuValues[m_upper_ch], btn_cc, 127);
-        break;
-      case btnmode_send_prg_ch:
-        // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendProgramChange(MenuValues[m_upper_ch], btn_cc);
-        for (uint8_t i = 0; i < 16; i++) {
-          if (MenuValues[MENU_BTN_MODE + i] == btnmode_send_prg_ch) {
-            panel16.setLEDonOff(i, false); // alle Program Change LEDs ausschalten
-            panel16.setLEDblink(i, false); // sicherheitshalber auch den LED-Zustand zurücksetzen
-          }
+  ledTimerStart(50); // Board-LED für 50 Timer-Zyklen einschalten
+  int8_t btn_onoff = panel16.getLEDonOff(bnt_number) ? 0 : 127;
+  int8_t btn_cc = MenuValues[MENU_BTN_CC + bnt_number];
+  switch (MenuValues[MENU_BTN_MODE + bnt_number]) {
+    case btnmode_send_cc_val:
+      // Button Mode 0 = Toggle, sendet MIDI-CC mit 127 bei ON und 0 bei OFF
+      MidiSendController(MenuValues[m_upper_ch], btn_cc, btn_onoff);
+      panel16.toggleLEDstate(bnt_number);
+      break;
+    case btnmode_send_cc_evt:
+      // Button Mode 1 = Event, sendet immer MIDI-CC mit 127 bei ON und bei OFF
+      MidiSendController(MenuValues[m_upper_ch], btn_cc, 127);
+      break;
+    case btnmode_send_prg_ch:
+      // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
+      MidiSendProgramChange(MenuValues[m_upper_ch], btn_cc);
+      for (uint8_t i = 0; i < 16; i++) {
+        if (MenuValues[MENU_BTN_MODE + i] == btnmode_send_prg_ch) {
+          panel16.setLEDonOff(i, false); // alle Program Change LEDs ausschalten
+          panel16.setLEDblink(i, false); // sicherheitshalber auch den LED-Zustand zurücksetzen
         }
-        panel16.setLEDonOff(bnt_number, true); // aktuelle LED bei Program Change immer an
-        panel16.setLEDblink(bnt_number, true); // aktuelle LED bei Program Change immer blinken
-        break;
-      case btnmode_send_note:
-        // Button Mode 3 = Note On/Off, sendet MIDI Note On mit Velocity 64 bei ON und Note Off bei OFF, Note Nummer aus MenuValues[m_btn1 + bnt_number]
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], btn_cc);
-        panel16.waitReleased();
-        MidiSendNoteOff(MenuValues[m_upper_ch], btn_cc);
-        break;
-    }
-    panel16.waitReleased();
-    #ifdef LCD_I2C
-      if (lcdPresent) displayMenuItem();
-    #endif
-  };
+      }
+      panel16.setLEDonOff(bnt_number, true); // aktuelle LED bei Program Change immer an
+      panel16.setLEDblink(bnt_number, true); // aktuelle LED bei Program Change immer blinken
+      break;
+    case btnmode_send_note:
+      // Button Mode 3 = Note On/Off, sendet MIDI Note On mit Velocity 64 bei ON und Note Off bei OFF, Note Nummer aus MenuValues[m_btn1 + bnt_number]
+      MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], btn_cc);
+      panel16.waitReleased();
+      MidiSendNoteOff(MenuValues[m_upper_ch], btn_cc);
+      break;
+  }
+  panel16.waitReleased();
 }
 #endif
 
@@ -654,17 +654,6 @@ void onMenuEncoder(int16_t delta) {
 }
 #endif
 
-// #############################################################################
-
-void blinkLED(uint8_t times) {
-  // Board-LED blinkt zur Bestätigung von Aktionen, z.B. Speichern von Werten im EEPROM
-  for (uint8_t i=0; i<times; i++) {
-    digitalWrite(LED_PIN, LOW); // sets the LED on
-    delay(150);
-    digitalWrite(LED_PIN, HIGH);  // sets the LED off
-    delay(150);
-  }
-}
 
 
 // #############################################################################
@@ -684,7 +673,8 @@ void timer1SemaphoreISR() {
   // der Scan- und MIDI-Merge-Funktionen im Hauptprogramm
   Timer1Semaphore++;
   Timer1RoundRobin++;
-  Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten
+  Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten = 16 Durchläufe bis zum nächsten vollen Zyklus
+    // Alle 16 Durchläufe, also alle 8 ms bei 500 us Timer-Intervall, wird die LCD-Button-Abfrage ausgelöst
   if (lcdPresent) {
     // Timer-Interrupt erledigt auch das Scannen des MenuPanel-Encoders
     lcd.encoderISR();
@@ -752,10 +742,6 @@ void setup() {
   configurePorts(MenuValues[MENU_KBD_DRIVER]); // Port Initialisierung je nach Treibertyp
   CreateDynTable(MenuValues[MENU_MIN_DYN], MenuValues[MENU_DYNSLOPE]);
 
-  MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
-  MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
-  MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
-  
   #ifdef PANEL16
     Wire.beginTransmission(PANEL16_I2C_ADDR); // Panel I2C-Adresse
     if (Wire.endTransmission(true) == 0) {
@@ -781,6 +767,12 @@ void setup() {
     mpxPots.setChangeAction(onMPXChange); // MPX-gestützte analoge Eingänge initialisieren, Callback-Funktion für Änderungen übergeben
     mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
   #endif
+  MidiSendController(MenuValues[m_upper_ch], 123, 0); // All Notes Off on Channel 1
+  MidiSendController(MenuValues[m_lower_ch], 123, 0); // All Notes Off on Channel 2
+  MidiSendController(MenuValues[m_pedal_ch], 123, 0); // All Notes Off on Channel 3
+  MidiSendProgramChange(MenuValues[m_upper_ch], 0); // Program Change on Channel 1
+  MidiSendProgramChange(MenuValues[m_lower_ch], 0); // Program Change on Channel 2
+  MidiSendProgramChange(MenuValues[m_pedal_ch], 0); // Program Change on Channel 3
 }
 
 
@@ -788,7 +780,15 @@ void setup() {
 
 void loop() {
   static uint8_t old_swell = 0;
+  tickerObject.update();
+
   while (Timer1Semaphore) {
+    if (ledTimeout > 0) {
+      ledTimeout--;
+      if (ledTimeout == 0) {
+        _LED_OFF; // LED aus
+      }
+    } 
     // wird alle 500µs neu gesetzt durch Timer1 ISR, hier wird die eigentliche Arbeit erledigt
     Timer1Semaphore--;
 

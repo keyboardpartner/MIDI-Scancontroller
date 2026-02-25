@@ -14,6 +14,7 @@
 // #############################################################################
 
 #include <Arduino.h>
+#include <Ticker.h>
 #include "MenuPanel.h"
 
 #define VERSION "ScanCtrl v0.10"
@@ -24,7 +25,9 @@
 #define EEPROM_VERSION_IDX 0x08 // Adresse des Vergleichwerts
 #define EEPROM_MENUDEF_IDX 0x10 // Startadresse im EEPROM für gespeicherte Werte#define VERSION "ScanCtrl 0.9"
 
-#define LED_PIN 2 // Pin für LED
+#define LED_PIN 2 // Pin für LED, Port D2
+#define _LED_OFF  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (LED_PIN))
+#define _LED_ON   asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (LED_PIN))
 
 // FATAR 1-61 Scan-Controller NEU Pinbelegung
 #define FT_TDRV_A   PORTB0
@@ -143,6 +146,7 @@ MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 //
 // #############################################################################
 
+volatile uint8_t ledTimeout = 0; // Timer für LED-Status, z.B. für kurzzeitiges Aufleuchten bei Tastenanschlag
 
 struct {
   int8_t keyOffset = 0;
@@ -150,4 +154,35 @@ struct {
   int8_t keysPerGroup = KEYS_PER_GROUP; // noch nicht in Benutzung, da bei allen Treibern 8 Tasten pro Gruppe, aber könnte für zukünftige Erweiterungen nützlich sein
   int8_t keys = KEYS;
 } scanParams;
+
+
+
+// #############################################################################
+
+void blinkLED(uint8_t times) {
+  // Board-LED blinkt zur Bestätigung von Aktionen, z.B. Speichern von Werten im EEPROM
+  for (uint8_t i=0; i<times; i++) {
+    _LED_ON;  // sets the LED on
+    delay(150);
+    _LED_OFF; // sets the LED off
+    delay(150);
+  }
+}
+
+void timerExpired();
+
+Ticker tickerObject(timerExpired, 100); 
+
+void timerExpired() {
+  // Diese Funktion wird aufgerufen, wenn der Timer abläuft
+  _LED_OFF; // LED aus
+  tickerObject.stop(); // Timer stoppen
+}
+
+void ledTimerStart(uint8_t duration) {
+  _LED_ON;
+  tickerObject.interval(duration);
+  tickerObject.start(); // Timer mit der angegebenen Dauer starten, ruft timerExpired auf, wenn abgelaufen
+}
+
 #endif

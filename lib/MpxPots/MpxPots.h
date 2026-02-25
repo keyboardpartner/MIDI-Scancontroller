@@ -29,7 +29,7 @@
   #define _SET_MPX_CLK  asm volatile("sbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_CLK))
   #define _CLR_MPX_CLK  asm volatile("cbi %0,%1 " : : "I" (_SFR_IO_ADDR(PORTD)), "I" (MPX_CLK))
 #else
-  // MPX Port Definitions and Fast Manipulation Macros
+  // MPX Port Definitions and Fast Manipulation Macros for ScanController mit MPX auf PORTC
   #define MPX_DATA PORTC0
   #define MPX_CLK  PORTC1
   // Fast port bit manipulation macros
@@ -166,16 +166,6 @@ void MPXpots::handleMPX() {
     timerValue--;
     _analogInputTimers[_analogInputSelect] = timerValue;
     isActive = true;
-    digitalWrite(LED_PIN, LOW);  // Timer läuft, Potentiometer aktiv
-  } else {
-    // Prüfe, ob noch Potis aktiv sind, wenn nicht, LED ausschalten
-    bool anyActive = false;
-    for (uint8_t i = 0; i < _analogMPXinputCount; i++) {
-      if (_analogInputTimers[i] > 0) anyActive = true;
-    }
-    if (!anyActive) {
-      digitalWrite(LED_PIN, HIGH);  // Timer abgelaufen, kein Potentiometer aktiv
-    }
   }
   while (ADCSRA & (1 << ADSC)); // warte bis Wandlung abgeschlossen
   // ADC-Rohwert integrieren, um Rauschen zu reduzieren, Integration mit Faktor 4,
