@@ -16,7 +16,14 @@ If not needed, comment out these defines in main.cpp and set defaults in menu_it
 #define PANEL16
 ```
 
-In case of Arduino IDE, you may have to copy *include* and *lib* directory contects into sketch directory. To use the 20 MHz version, install MiniCore in the Arduino IDE (Board Manager), then select "ATmega328P (MiniCore)" as board and "20 MHz external" as clock speed. 
+### PlatformIO
+
+Just download the ZIP (dropdown menu in green **<> Code** button above) and unpack on your harddisk (or clone project if you installed *Git*). Open this folder in VScode/PlatformIO. There are some environments provided for different MCU speeds and to flash an OptiBoot bootloader with USBasp stick. With bootloader installed, use the *[env:ATmega328P_20MHz]* environment.
+
+### Arduino IDE
+
+Download the ZIP (dropdown menu in green **<> Code** button above) and unpack on your harddisk. Copy *include* and *lib* directory contects into your sketch directory. Rename *main.cpp* to *<sketch name>.ino*. Arduino IDE has no provision to select MCU speed. To use the 20 MHz version, install MiniCore in the Arduino IDE (Board Manager), then select "ATmega328P (MiniCore)" as board and "20 MHz external" as clock speed. 
+
 Then burn the bootloader to set the fuses for 20 MHz operation. After that you can upload the sketch with the regular Arduino bootloader method -- no special programmer needed. Anyway, we **highly recommend** using PlatformIO with VSCode for development!
 
 **Version Info:**

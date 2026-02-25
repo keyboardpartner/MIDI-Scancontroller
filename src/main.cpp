@@ -20,10 +20,11 @@
 // Then burn the bootloader to set the fuses for 20 MHz operation. After that you can select "ATmega328P_20MHz" as environment and 
 // upload the sketch with the regular Arduino bootloader method -- no special programmer needed.
 
+
 // Define used modules here, comment out unused modules to save program memory
 
 #define LCD_I2C
-//#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
+#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
 #define PANEL16
 
 #include <Arduino.h>
