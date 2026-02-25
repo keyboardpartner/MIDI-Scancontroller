@@ -363,11 +363,7 @@ void MenuPanel::encoderISR() {
   // muss regelmäßig oder über Timer-Interrupt (max. 2ms) aufgerufen werden, 
   // um die Encoder-Position zu aktualisieren
   int16_t delta = 0;
-  #ifdef HX35_BOARD
-    uint8_t currentState = (PINA & B00000011); // Nur die beiden relevanten Bits lesen und nach rechts verschieben
-  #else
-    uint8_t currentState = (PINC & B00001100) >> 2; // Nur die beiden relevanten Bits lesen und nach rechts verschieben
-  #endif
+  uint8_t currentState = ENC_STATE_BITS; // Nur die beiden relevanten Bits lesen und nach rechts verschieben
   if (currentState != _lastState) {
     // Zustandsänderung erkannt, nur ganze Schritte zählen
     if ((_lastState == 0b00 && currentState == 0b10)) {
