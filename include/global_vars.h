@@ -179,6 +179,7 @@ void timerExpired() {
   tickerObject.stop(); // Timer stoppen
 }
 
+// Achtung: Scan-Routine benutzt LED-Port, LED wird dort stets zurückgesetzt!
 void ledTimerStart(uint8_t duration) {
   _LED_ON;
   tickerObject.interval(duration);
