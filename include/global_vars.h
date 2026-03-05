@@ -93,6 +93,9 @@
 #define MIDI_DYNSLOPE 12
 #define MIDI_MAXDYNADJ 5
 
+#define FOOTSW1 PINB3
+#define FOOTSW2 PINB4
+
 // ATMEL ATMEGA644P
 
 #define LED_PIN PIN_PD2  // Pin für LED
@@ -155,7 +158,8 @@ struct {
   uint8_t invertMask = 0; // BUGFIX für v02: 3 für FATAR 1-73, 0 für alle anderen Treiber
 } scanParams;
 
-
+uint8_t fs1_old; // Footswitch 1 alter Zustand
+uint8_t fs2_old; // Footswitch 2 alter Zustand
 
 // #############################################################################
 

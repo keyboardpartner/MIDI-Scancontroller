@@ -20,7 +20,7 @@
 // Define used modules here, comment out unused modules to save program memory
 
 #define LCD_I2C
-//#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
+#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
 //#define PANEL16
 
 #include <Arduino.h>
@@ -234,9 +234,11 @@ void ScanPedal() {
 
 void ScanManualsFatar1() {
   // Upper und Lower scannen, auch für PULSE 6105WF mit gleicher Pinbelegung wie FATARSCAN,
-  // aber mit prePulses und anderem scankey-Startwert
-  // Zeitbedarf für Abfrage beider 61er Manuale: 
-  // FatarScan1-73: etwa 220µs bei 20 MHz Takt, 270µs bei 16 MHz
+  // aber mit anderen Matrix-Parametern
+  // Zeitbedarf für Abfrage beider 61er Manuale bei 20 MHz Takt: 
+  // FatarScan1-61: etwa 215µs
+  // FatarScan1-73: etwa 255µs
+  // Pulse 6105W:   etwa 240µs
   AnyKeyPressed = false;
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
@@ -248,7 +250,7 @@ void ScanManualsFatar1() {
   uint8_t first_playable_key = first_key + scanParams.presetKeys; // erste spielbare Taste, nach Preset-Tasten
   for (uint8_t tdrive = 0; tdrive < scanParams.keysPerGroup; tdrive++) {
     PORTB = (PORTB & B11111000) | (tdrive ^ scanParams.invertMask); // nur unterste 3 Bits, als T-Drive an Decoder
-    delayMicroseconds(2); // kurze Pause, Settle time
+    delayMicroseconds(2);   // kurze Pause, Settle time
     uint8_t matrixkey = 0;  // erste Taste, ggf. mit Offset
     // SRs einer Gruppe laden, an FT_UPR und FT_LWR steht danach das erste Bit an
     _CLR_FT_LOAD; // FT_LOAD auf LOW, aktiv!
@@ -313,13 +315,12 @@ void ScanManualsFatar1() {
 void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
   // Zeitbedarf für Abfrage beider 61er Manuale:
-  // etwa 155µs bei 20 MHz Takt, 195µs bei 16 MHz
+  // etwa 165µs bei 20 MHz Takt, 200µs bei 16 MHz
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
   AnyKeyPressed = false;
   uint8_t mk, br, pin_d;
-  uint8_t scankey = 0; // aktuelle Taste
   // Reset des 4017 T-Drive Counters
   // Reset des 4024 Sense Counters
   _SET_FT_TDRV_RST;
@@ -330,9 +331,9 @@ void ScanManualsFatar2() {
   _CLR_FT_SENSE_RST;
   for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
     delayMicroseconds(1); // kurze Pause nach Setzen von T Drive, Settle time
-    for (uint8_t pulsecount = 0; pulsecount < scanParams.keysPerGroup; pulsecount++) {
-      if (scankey >= scanParams.playableKeys) scankey = scankey - scanParams.playableKeys; // Modulo bis zur maximalen Tastenzahl
-      // scankey = scankey & 0x3F; // ginge auch, aber nur für 61er Tastaturen
+    uint8_t matrixkey = 0;  // erste Taste, ggf. mit Offset
+    for (uint8_t tdrive = 0; tdrive < scanParams.keysPerGroup; tdrive++) {
+      uint8_t scankey = matrixkey + tdrive + scanParams.keyOffset;
       pin_d = (PIND & FT_CONT_MASK2) | (PINB & (1 << BR_UPR)); // relevante Pins von Port B und D lesen
       // Increment Sense Counter
       // Überlauf ist schon für nächste Gruppe, da der 4024 weiter durchläuft
@@ -349,14 +350,13 @@ void ScanManualsFatar2() {
         LowerCheckstate(scankey, mk, br);
         CommonKeyState[scankey] = pin_d; // Zustand der Taste in beiden Manuals
       }
-      scankey += scanParams.keysPerGroup;
+      matrixkey += scanParams.keysPerGroup;
     }
     // Letzte Taste in der Sense-Gruppe, danach T-Drive inkrementieren
     _SET_FT_TDRV_INC;  // FT_CLK auf HIGH
     _NOP_DLY;
     _NOP_DLY;
     _CLR_FT_TDRV_INC; // FT_CLK auf LOW
-    scankey++;
   }
 }
 
@@ -383,7 +383,7 @@ void ScanManualsSR61() {
     mk_upr = PINB & (1 << SR_UPR); // Make-Kontakt Pedal lesen, active LOW
     // Manual hat nur Make-Kontakt, deshalb keine State Machine
     mk_upr_old = UpperKeyState[scankey];
-    scankey_w_offs = scankey - scanParams.keyOffset;
+    scankey_w_offs = scankey + scanParams.keyOffset;
     if (mk_upr != mk_upr_old) {
       // Zustand hat sich geändert
       UpperKeyState[scankey] = mk_upr;
@@ -442,6 +442,45 @@ void scanKeybeds() {
 }
 
 // #############################################################################
+
+
+void handleFootSw() {
+  if (MenuValues[MENU_KBD_DRIVER] == drv_sr61) {
+    // Fußschalter können mit SR61 nicht verwendet werden, da die Pins 
+    // für die Fußschalter mit den Make-Kontakten der Tasten belegt sind. 
+    MenuValues[m_footsw1] = -1;
+    MenuValues[m_footsw2] = -1;
+    return;
+  }
+  uint8_t footswState = PINB & (1 << FOOTSW1); // Footswitch lesen, active LOW
+  if ((footswState != fs1_old) && (MenuValues[m_footsw1] >= 0)) {
+    // Zustand hat sich geändert
+    fs1_old = footswState;
+    if (footswState == 0) {
+      // Footswitch gedrückt, MIDI CC mit Wert 127 senden
+      MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw1], 127);
+      ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
+    } else {
+      // Footswitch losgelassen, MIDI CC mit Wert 0 senden
+      MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw1], 0);
+    }
+  }
+  footswState = PINB & (1 << FOOTSW2); // Footswitch lesen, active LOW
+  if ((footswState != fs2_old) && (MenuValues[m_footsw2] >= 0)) {
+    // Zustand hat sich geändert
+    fs2_old = footswState;
+    if (footswState == 0) {
+      // Footswitch gedrückt, MIDI CC mit Wert 127 senden
+      MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw2], 127);
+      ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
+    } else {
+      // Footswitch losgelassen, MIDI CC mit Wert 0 senden
+      MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw2], 0);
+    }
+  }
+}
+
+
 
 void configurePorts(uint8_t driverType) {
   DDRC =  B00000011; // Encoder-Eingänge PC2 und PC3, MPX Data PC0 und MPX-Clk PC1 als Ausgänge
@@ -792,6 +831,8 @@ void setup() {
   MidiSendProgramChange(MenuValues[m_upper_ch], 0); // Program Change on Channel 1
   MidiSendProgramChange(MenuValues[m_lower_ch], 0); // Program Change on Channel 2
   MidiSendProgramChange(MenuValues[m_pedal_ch], 0); // Program Change on Channel 3
+  fs1_old = PINB & (1 << FOOTSW1); // initialen Zustand des Fußschalters lesen, active LOW
+  fs2_old = PINB & (1 << FOOTSW2);
 }
 
 
@@ -812,6 +853,11 @@ void loop() {
     Timer1Semaphore--;
 
     scanKeybeds(); // Manuale und Pedale scannen, MIDI-Events generieren, etwa 300 us bei 20 MHz Takt
+
+
+    if (Timer1RoundRobin == 10) {
+      handleFootSw(); // muss regelmäßig aufgerufen werden, um Änderungen aller Potis zu erkennen
+    }
 
     #ifdef LCD_I2C
       if (lcdPresent) {
