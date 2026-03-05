@@ -86,14 +86,8 @@
 
 #define _NOP_DLY asm volatile ("nop")
 
-#define KEYS_PER_GROUP 8
-#define KEYS (KEYS_PER_GROUP * 8) // 8 Treibergruppen à 8 Tasten = 64 Tasten pro Manual
-
 #define TIMER_MAX 255
 #define TIMER_DIV ((TIMER_MAX * 2) + MIDI_MINDYN)
-
-#define PEDALKEYS 25
-#define MANUALKEYS 61
 
 #define MIDI_MINDYN 10
 #define MIDI_DYNSLOPE 12
@@ -132,7 +126,9 @@
 
 MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 
-
+#define KEY_ARR_SIZE 96 // Größe der Arrays für Tastenstatus und Timer, angepasst an maximal 96 Tasten (z.B. 88 Tasten + 8 Preset-Tasten), um Speicher effizient zu nutzen
+#define PEDAL_ARR_SIZE 32 // Größe der Arrays für Pedaltastenstatus und Timer, angepasst an maximal 32 Pedaltasten, um Speicher effizient zu nutzen
+#define PRESET_ARR_SIZE 16
 
 // #############################################################################
 //
@@ -149,10 +145,14 @@ MenuPanel lcd(LCD_I2C_ADDR, 16, 2);
 volatile uint8_t ledTimeout = 0; // Timer für LED-Status, z.B. für kurzzeitiges Aufleuchten bei Tastenanschlag
 
 struct {
-  int8_t keyOffset = 0;
-  int8_t prePulses = 0;
-  int8_t keysPerGroup = KEYS_PER_GROUP; // noch nicht in Benutzung, da bei allen Treibern 8 Tasten pro Gruppe, aber könnte für zukünftige Erweiterungen nützlich sein
-  int8_t keys = KEYS;
+  uint8_t groupOffset = 3;  // MK/BR-Gruppe der ersten Manual- oder Preset-Taste
+  int8_t  keyOffset = 1;    // Offset der ersten Taste innerhalb der Gruppe
+  uint8_t keyGroups = 11;   // Anzahl der MK/BR Paare
+  uint8_t keysPerGroup = 8; // Anzahl der Tasten pro MK/BR Gruppe
+  uint8_t presetKeys = 0;   // werden für NoteOn/Off übersprungen
+  uint8_t playableKeys = 61;
+  uint8_t pedalKeys = 25;
+  uint8_t invertMask = 0; // BUGFIX für v02: 3 für FATAR 1-73, 0 für alle anderen Treiber
 } scanParams;
 
 

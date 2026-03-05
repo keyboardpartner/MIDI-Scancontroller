@@ -22,12 +22,13 @@
 
 int8_t MenuValues[MENU_ITEMCOUNT];
 
-#define MENU_DRIVERCOUNT 5
-enum {drv_sr61, drv_fatar1, drv_fatar2, drv_pulse6105, drv_none};
+#define MENU_DRIVERCOUNT 6
+enum {drv_sr61, drv_fatar1_61, drv_fatar1_73, drv_fatar2, drv_pulse6105, drv_none};
 
 const lcdTextType DriverTypes[MENU_DRIVERCOUNT] PROGMEM = {
   { "Scan16/61" },
   { "FatarScan1-61" },
+  { "FatarScan1-73" },
   { "FatarScan2" },
   { "Pulse 6105WF" },
   { "None" },

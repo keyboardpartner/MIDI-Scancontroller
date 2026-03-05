@@ -20,8 +20,8 @@
 // Define used modules here, comment out unused modules to save program memory
 
 #define LCD_I2C
-#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
-#define PANEL16
+//#define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
+//#define PANEL16
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -29,16 +29,18 @@
 #include "midi_io.h"
 #include "global_vars.h"
 
+uint8_t UpperKeyState[KEY_ARR_SIZE]; // Zustand der Tasten
+uint8_t LowerKeyState[KEY_ARR_SIZE]; // Zustand der Tasten
+uint8_t CommonKeyState[KEY_ARR_SIZE]; // Zustand der Tasten Upper und Lower
 
-uint8_t UpperKeyState[KEYS]; // Zustand der Tasten
-uint8_t LowerKeyState[KEYS]; // Zustand der Tasten
-uint8_t CommonKeyState[KEYS]; // Zustand der Tasten Upper und Lower
-
-uint8_t PedalContactState[PEDALKEYS]; // Zustand der Pedaltasten
+uint8_t PedalContactState[PEDAL_ARR_SIZE]; // Zustand der Pedaltasten
 uint8_t AnyKeyPressed = false;
 
-uint8_t UpperKeyTimer[KEYS]; // Timer für jede Taste
-uint8_t LowerKeyTimer[KEYS]; // Timer für jede Taste
+uint8_t UpperKeyTimer[KEY_ARR_SIZE]; // Timer für jede Taste
+uint8_t LowerKeyTimer[KEY_ARR_SIZE]; // Timer für jede Taste
+
+uint8_t UpperPresetState[PRESET_ARR_SIZE]; // Zustand für jede Taste
+uint8_t LowerPresetState[PRESET_ARR_SIZE]; // Zustand für jede Taste
 
 volatile uint8_t Timer1Semaphore = 0;
 volatile uint8_t Timer1RoundRobin = 0;
@@ -82,7 +84,7 @@ bool panel16Present = false;
 // #############################################################################
 
 // State Machines für Upper und Lower bei FATARSCAN_NEW und FATARSCAN_OLD
-enum {t_idle, t_forward, t_pressed, t_reverse};
+enum {t_idle, t_forward, t_pressed};
 
 void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
   switch (UpperKeyState[scankey]) {
@@ -109,26 +111,23 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       if (tval > 0) {
         tval--;
         UpperKeyTimer[scankey] = tval;
-      } else {
-        // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
-        UpperKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey, MenuValues[MENU_MIN_DYN]);  // sende MIDI NoteOn mit Dynamikwert
       }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
-      UpperKeyState[scankey] = t_reverse;
+      UpperKeyState[scankey] = t_idle;
+      MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_LWR] + scankey);// sende MIDI NoteOFF
     }
     break;
   case t_pressed:
-  case t_reverse:
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
       UpperKeyState[scankey] = t_idle;
-      MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey);// sende MIDI NoteOFF
+      MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_LWR] + scankey);// sende MIDI NoteOFF
     };
     break;
   }
 }
+
 
 // #############################################################################
 
@@ -157,18 +156,14 @@ void LowerCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
       if (tval > 0) {
         tval--;
         LowerKeyTimer[scankey] = tval;
-      } else {
-        // sehr langsames Drücken oder verschmutzt, Maximalwert erreicht
-        LowerKeyState[scankey] = t_pressed;
-        MidiSendNoteOn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey, MenuValues[MENU_MIN_DYN]);  // sende MIDI NoteOn mit Dynamikwert
       }
     } else {
       // Break-Kontakt offen, Taste wieder losgelassen
-      LowerKeyState[scankey] = t_reverse;
+      LowerKeyState[scankey] = t_idle;
+      MidiSendNoteOff(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey);// sende MIDI NoteOFF
     }
     break;
   case t_pressed:
-  case t_reverse:
     if (!(mk || br)) {
       // Make- und Break-Kontakt offen, Taste losgelassen
       LowerKeyState[scankey] = t_idle;
@@ -202,7 +197,7 @@ void ScanPedal() {
   _NOP_DLY;
   _CLR_SR_CLK;
   _CLR_SR_LOAD; // Load LOW
-  for (scankey = 0; scankey < PEDALKEYS; scankey++) {
+  for (scankey = 0; scankey < scanParams.pedalKeys; scankey++) {
     mk_ped = PINB & (1 << SR_PED); // Make-Kontakt Pedal lesen, active LOW
     // Pedal hat nur Make-Kontakt, deshalb keine State Machine
     mk_old = PedalContactState[scankey];
@@ -237,68 +232,79 @@ void ScanPedal() {
 //
 // #############################################################################
 
-void ScanManualsFatar1_Pulse6105() {
+void ScanManualsFatar1() {
   // Upper und Lower scannen, auch für PULSE 6105WF mit gleicher Pinbelegung wie FATARSCAN,
   // aber mit prePulses und anderem scankey-Startwert
   // Zeitbedarf für Abfrage beider 61er Manuale: 
-  // FatarScan1-61: etwa 176µs bei 20 MHz Takt, 220µs bei 16 MHz
-  // Pulse 6105W:   etwa 205µs bei 20 MHz Takt, 257µs bei 16 MHz (wg. Pre-Pulses langsamer)
-   AnyKeyPressed = false;
+  // FatarScan1-73: etwa 220µs bei 20 MHz Takt, 270µs bei 16 MHz
+  AnyKeyPressed = false;
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
-  uint8_t mk, br;
-  uint8_t contacts_br, contacts_mk; // aktuelle Tasten Upper und Lower, für CommonKeyState
+
   uint8_t portd_idle = (PORTD & ~(1 << FT_CLK)) | (1 << FT_LOAD); // Set bit 3 LOW, 4 HIGH for idle
   PORTD = portd_idle;  // zurück zu idle
-  int8_t scankey = 0;  // aktuelle Taste
-  
-  if (scanParams.keyOffset != 0) {
-    scankey = KEYS - scanParams.keyOffset; // aktuelle Taste
-  }
-  for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
-    PORTB = (PORTB & B11111000) | tdrive; // nur unterste 3 Bits, als T-Drive an Decoder
-    delayMicroseconds(1); // kurze Pause, Settle time
+  uint8_t first_key = scanParams.groupOffset * scanParams.keysPerGroup + scanParams.keyOffset; // erste spielbare Taste, nach Preset-Tasten
+  uint8_t first_playable_key = first_key + scanParams.presetKeys; // erste spielbare Taste, nach Preset-Tasten
+  for (uint8_t tdrive = 0; tdrive < scanParams.keysPerGroup; tdrive++) {
+    PORTB = (PORTB & B11111000) | (tdrive ^ scanParams.invertMask); // nur unterste 3 Bits, als T-Drive an Decoder
+    delayMicroseconds(2); // kurze Pause, Settle time
+    uint8_t matrixkey = 0;  // erste Taste, ggf. mit Offset
     // SRs einer Gruppe laden, an FT_UPR und FT_LWR steht danach das erste Bit an
-    for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
-      if (pulsecount == 0) {
-        // erstes Bit mit LOAD laden, danach Taktung für nächste Bits
-        _CLR_FT_LOAD; // FT_LOAD auf LOW, aktiv!
-        _SET_FT_CLK;  // FT_CLK auf HIGH
-        PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
-        for (int8_t i = 0; i < scanParams.prePulses; i++) {
-          _SET_FT_CLK;  // FT_CLK auf HIGH
-          PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
-        }
-      } else {
-        // erstes Bit
-        _SET_FT_CLK;  // FT_CLK auf HIGH
-        PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
-      }
-      // jetzt liegt das MK-Bit an FT_UPR und FT_LWR an
-      // Berechnung ist auch eine kleine Pause zum Settle des Eingangspins:
-      if (scankey >= KEYS) scankey = scankey - KEYS; // Modulo bis zur maximalen Tastenzahl
-      // scankey = scankey & 0x3F; // ginge auch, aber nur für 61er Tastaturen
-      contacts_mk = PIND & FT_CONT_MASK1; // Make-Kontakte Upper und Lower lesen
-      // BR-Bit(s) einlesen
+    _CLR_FT_LOAD; // FT_LOAD auf LOW, aktiv!
+    for (uint8_t pulsecount = 0; pulsecount < scanParams.keyGroups; pulsecount++) {
+      // MK/BR0..10-Bits einlesen
       _SET_FT_CLK;  // FT_CLK auf HIGH
       PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
-      AnyKeyPressed = AnyKeyPressed | contacts_mk; // kleine Pause zum Settle, WICHTIG!
-      contacts_br = PIND & FT_CONT_MASK1; // Make-Kontakte Upper und Lower lesen
-      // Binäres ODER ist deutlich schnell1er als logisches ODER, deshalb hier mit Bitmasken arbeiten
-      // Pointer statt Array-Zugriff ist dagegen NICHT schneller!
-      if ((CommonKeyState[scankey] != (contacts_mk | contacts_br)) | contacts_br | contacts_mk) {
-        mk = contacts_mk & (1 << FT_UPR); // Make-Kontakt Upper lesen
-        br = contacts_br & (1 << FT_UPR); // Break-Kontakt Upper lesen
-        UpperCheckstate(scankey, mk, br);
-        mk = contacts_mk & (1 << FT_LWR); // Make-Kontakt Lower lesen
-        br = contacts_br & (1 << FT_LWR); // Break-Kontakt Lower lesen
-        LowerCheckstate(scankey, mk, br);
-        CommonKeyState[scankey] = contacts_mk | contacts_br; // Zustand der Taste in beiden Manuals
+      uint8_t scankey = matrixkey + tdrive;
+      _NOP_DLY;
+      // jetzt liegt das MK-Bit an FT_UPR und FT_LWR an
+      uint8_t contacts_mk = PIND & FT_CONT_MASK1; // Make-Kontakte Upper und Lower lesen
+      _SET_FT_CLK;  // FT_CLK auf HIGH
+      PORTD = portd_idle; // FT_CLK auf LOW, FT_LOAD auf HIGH für idle
+      if (scankey >= first_key) {  // nur gültige Tasten scannen      
+        if (scankey >= first_playable_key) {  // nur gültige Tasten scannen
+          // jetzt liegt das BR-Bit an FT_UPR und FT_LWR an
+          scankey -= first_playable_key;
+          uint8_t contacts_br = PIND & FT_CONT_MASK1; // Break-Kontakte Upper und Lower lesen
+          // Nur gültige Tasten scannen, abhängig von groupOffset, scankeyEnd und presetKeys
+          // Alle Tasten über groupOffset + presetKeys bis scankeyEnd - 1 sind spielbar
+          AnyKeyPressed = AnyKeyPressed | contacts_mk;
+          // Binäres ODER ist deutlich schneller als logisches ODER, deshalb hier mit Bitmasken arbeiten
+          // Pointer statt Array-Zugriff ist dagegen NICHT schneller!
+          if ((CommonKeyState[scankey] != (contacts_mk | contacts_br)) | contacts_br | contacts_mk) {
+            uint8_t mk = contacts_mk & (1 << FT_UPR); // Make-Kontakt Upper lesen
+            uint8_t br = contacts_br & (1 << FT_UPR); // Break-Kontakt Upper lesen
+            UpperCheckstate(scankey, mk, br);
+            mk = contacts_mk & (1 << FT_LWR); // Make-Kontakt Lower lesen
+            br = contacts_br & (1 << FT_LWR); // Break-Kontakt Lower lesen
+            LowerCheckstate(scankey, mk, br);
+            CommonKeyState[scankey] = contacts_mk | contacts_br; // Zustand der Taste in beiden Manuals
+
+          }
+        } else {
+          // Preset-Tasten 0..11
+          scankey -= first_key;
+          uint8_t mk = contacts_mk & (1 << FT_UPR); // Make-Kontakt Upper lesen
+          if (UpperPresetState[scankey] != mk) {
+            UpperPresetState[scankey] = mk;
+            if (mk) {
+              // Preset-Taste gedrückt
+              MidiSendProgramChange(MenuValues[m_upper_ch], scankey); // CC mit Wert 127 senden
+            }
+          }
+          mk = contacts_mk & (1 << FT_LWR); // Make-Kontakt Lower lesen
+          if (LowerPresetState[scankey] != mk) {
+            LowerPresetState[scankey] = mk;
+            if (mk) {
+              // Preset-Taste gedrückt
+              MidiSendProgramChange(MenuValues[m_lower_ch], scankey); // CC mit Wert 127 senden
+            }
+          }
+        }
       }
-      scankey += KEYS_PER_GROUP;
+      matrixkey += scanParams.keysPerGroup; // erhöht sich mit jedem Pulspaar um die Anzahl der Tasten pro Gruppe
     }
-    scankey++;
   }
 }
 
@@ -324,8 +330,8 @@ void ScanManualsFatar2() {
   _CLR_FT_SENSE_RST;
   for (uint8_t tdrive = 0; tdrive < 8; tdrive++) {
     delayMicroseconds(1); // kurze Pause nach Setzen von T Drive, Settle time
-    for (uint8_t pulsecount = 0; pulsecount < KEYS_PER_GROUP; pulsecount++) {
-      if (scankey >= KEYS) scankey = scankey - KEYS; // Modulo bis zur maximalen Tastenzahl
+    for (uint8_t pulsecount = 0; pulsecount < scanParams.keysPerGroup; pulsecount++) {
+      if (scankey >= scanParams.playableKeys) scankey = scankey - scanParams.playableKeys; // Modulo bis zur maximalen Tastenzahl
       // scankey = scankey & 0x3F; // ginge auch, aber nur für 61er Tastaturen
       pin_d = (PIND & FT_CONT_MASK2) | (PINB & (1 << BR_UPR)); // relevante Pins von Port B und D lesen
       // Increment Sense Counter
@@ -343,7 +349,7 @@ void ScanManualsFatar2() {
         LowerCheckstate(scankey, mk, br);
         CommonKeyState[scankey] = pin_d; // Zustand der Taste in beiden Manuals
       }
-      scankey += KEYS_PER_GROUP;
+      scankey += scanParams.keysPerGroup;
     }
     // Letzte Taste in der Sense-Gruppe, danach T-Drive inkrementieren
     _SET_FT_TDRV_INC;  // FT_CLK auf HIGH
@@ -362,7 +368,7 @@ void ScanManualsSR61() {
   delayMicroseconds(1);
   _CLR_TEST;
   AnyKeyPressed = false; //Timing hier nicht wichtig
-  uint8_t scankey; // aktuelle Taste
+  uint8_t scankey, scankey_w_offs; // aktuelle Taste
   uint8_t mk_upr, mk_upr_old;
   uint8_t mk_lwr, mk_lwr_old;
   _SET_SR_LOAD;
@@ -373,19 +379,20 @@ void ScanManualsSR61() {
   _NOP_DLY;
   _CLR_SR_CLK;
   _CLR_SR_LOAD; // Load LOW
-  for (scankey = 0; scankey < MANUALKEYS; scankey++) {
+  for (scankey = 0; scankey < scanParams.playableKeys; scankey++) {
     mk_upr = PINB & (1 << SR_UPR); // Make-Kontakt Pedal lesen, active LOW
     // Manual hat nur Make-Kontakt, deshalb keine State Machine
     mk_upr_old = UpperKeyState[scankey];
+    scankey_w_offs = scankey - scanParams.keyOffset;
     if (mk_upr != mk_upr_old) {
       // Zustand hat sich geändert
       UpperKeyState[scankey] = mk_upr;
       if (mk_upr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey); // Upper NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey_w_offs); // Upper NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey); // Upper NoteOff
+        MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey_w_offs); // Upper NoteOff
       }
     }
     mk_lwr = PINB & (1 << SR_LWR); // Make-Kontakt Pedal lesen, active LOW
@@ -396,10 +403,10 @@ void ScanManualsSR61() {
       LowerKeyState[scankey] = mk_lwr;
       if (mk_lwr == 0) {
         // Pedal gedrückt
-        MidiSendNoteOnNoDyn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey); // Lower NoteOn mit fester Dynamik
+        MidiSendNoteOnNoDyn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey_w_offs); // Lower NoteOn mit fester Dynamik
       } else {
         // Pedal losgelassen
-        MidiSendNoteOff(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey); // Lower NoteOff
+        MidiSendNoteOff(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey_w_offs); // Lower NoteOff
       }
     }
     _SET_SR_CLK;
@@ -415,17 +422,18 @@ void scanKeybeds() {
   // Alle Manuale und Pedale scannen, MIDI-Events senden, MIDI-Merge durchführen
   ScanPedal();    // 25 us bei 20 MHz
   switch (MenuValues[MENU_KBD_DRIVER]) {
-    case drv_fatar1:
-      ScanManualsFatar1_Pulse6105(); // 270 us bei 20 MHz
+    case drv_pulse6105:
+      //ScanManualsPulse6105(); // 270 us bei 20 MHz
+      //break;
+    case drv_fatar1_61:
+    case drv_fatar1_73:
+      ScanManualsFatar1(); // 270 us bei 20 MHz
       break;
     case drv_fatar2:
       ScanManualsFatar2();   // 250 us bei 20 MHz
       break;
     case drv_sr61:
       ScanManualsSR61();     // 81 us bei 20 MHz
-      break;
-    case drv_pulse6105:
-      ScanManualsFatar1_Pulse6105(); // 270 us bei 20 MHz
       break;
     default:
       break;
@@ -438,51 +446,78 @@ void scanKeybeds() {
 void configurePorts(uint8_t driverType) {
   DDRC =  B00000011; // Encoder-Eingänge PC2 und PC3, MPX Data PC0 und MPX-Clk PC1 als Ausgänge
   PORTC = B00001100; // Pull-ups für Encoder-Eingänge PC2 und PC3 aktivieren
+  if (driverType == drv_sr61) {
+    for (uint8_t i = 0; i < KEY_ARR_SIZE; i++) {
+      UpperKeyState[i] = (1 << SR_UPR);
+      LowerKeyState[i] = (1 << SR_LWR);
+    }
+  } else {
+    // Für alle anschlagdynamischen Tastaturen
+    for (uint8_t i = 0; i < KEY_ARR_SIZE; i++) {
+      UpperKeyState[i] = t_idle;
+      LowerKeyState[i] = t_idle;
+    }
+  }
+  // Initialisierung der Pedal-Kontaktzustände
+  for (uint8_t i = 0; i < PEDAL_ARR_SIZE; i++) {
+    PedalContactState[i] = (1 << SR_PED);
+  }
+  // Initialisierung der Timer für alle Tasten
+  for (uint8_t i = 0; i < KEY_ARR_SIZE; i++) {
+    UpperKeyTimer[i] = TIMER_MAX;
+    LowerKeyTimer[i] = TIMER_MAX;
+    CommonKeyState[i] = 0;
+  }
+  // Initialisierung der Preset-Kontaktzustände
+  for (uint8_t i = 0; i < PRESET_ARR_SIZE; i++) {
+    UpperPresetState[i] = 0;
+    LowerPresetState[i] = 0;
+  }
+  scanParams.groupOffset  = 0;  // MK/BR-Gruppe der ersten Manual- oder Preset-Taste
+  scanParams.keyOffset    = 0;  // Offset der ersten Taste innerhalb der Gruppe
+  scanParams.presetKeys   = 0;  // werden für NoteOn/Off übersprungen
+  scanParams.keyGroups    = 11; // Anzahl der MK/BR Paare
+  scanParams.keysPerGroup = 8;  // Anzahl der Tasten pro MK/BR Gruppe
+  scanParams.invertMask   = 0;  // BUGFIX für v02: 3 für FATAR 1-73, 0 für alle anderen Treiber
+  Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
   switch (driverType) {
-    case drv_fatar1:
+    case drv_fatar1_61:
       // FATAR Scan Controller 1 (NEU)
+      // beginnt mit MK/BR0, T=0, 8 Tasten pro Gruppe, 8 Gruppen, keine Preset-Tasten
       DDRB =  B00000111; // PB0..PB2 als Ausgänge
       PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
       DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
       PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
-      // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
-      for (uint8_t i = 0; i < KEYS; i++) {
-        UpperKeyState[i] = t_idle;
-        LowerKeyState[i] = t_idle;
-      }
-      scanParams.prePulses = 0; 
-      scanParams.keyOffset = 0; 
-      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
+      scanParams.keyGroups = 8; // Anzahl der MK/BR Paare, hier nur 2 SR HC166!
+      break;
+    case drv_fatar1_73:
+      // FATAR Scan Controller 1 (NEU)
+      // beginnt mit MK/BR1, T=7, 8 Tasten pro Gruppe, 11 Gruppen, 12 Preset-Tasten
+      DDRB =  B00000111; // PB0..PB2 als Ausgänge
+      PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
+      DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
+      PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
+      scanParams.groupOffset = 1; // Erste Taste in Gruppe MK1/BR1
+      scanParams.keyOffset  = 7;  // Erste Taste bei T=7
+      scanParams.presetKeys = 12;
+      scanParams.invertMask = 3;  // BUGFIX für v02
+      break;
+    case drv_pulse6105:
+      // Pulse 6105WF Scan Controller
+      // beginnt mit MK/BR3, T=3, 8 Tasten pro Gruppe, 8 Gruppen, keine Preset-Tasten
+      DDRB =  B00000111; // PB0..PB2 als Ausgänge
+      PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
+      DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
+      PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
+      scanParams.groupOffset = 3; // Erste Taste in Gruppe MK3/BR3
+      scanParams.keyOffset = 3;   // Erste Taste bei T=3
       break;
     case drv_fatar2:
-      // FATAR Scan Controller 2
+      // FATAR Scan Controller 2, festgelegte Gruppen, keine Preset-Tasten
       DDRB =  B00000011; // PB0..PB1 als Ausgänge
       PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
       DDRD =  B00110110; // Keine Pullups an Eingängen PIND6 und PIND7!
       PORTD = B00000110; // Pull-ups für Eingänge aktivieren, LED PD2 off (high!)
-      // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
-      for (uint8_t i = 0; i < KEYS; i++) {
-        UpperKeyState[i] = t_idle;
-        LowerKeyState[i] = t_idle;
-      }
-      scanParams.prePulses = 0; 
-      scanParams.keyOffset = 0; 
-      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
-      break;
-    case drv_pulse6105:
-      // Pulse 6105WF Scan Controller
-      DDRB =  B00000111; // PB0..PB2 als Ausgänge
-      PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
-      DDRD =  B00111110; // Keine Pullups an Eingängen PIND6 und PIND7!
-      PORTD = B00010110; // Pull-ups für Eingänge aktivieren, FT_CLK low, LED PD2 off (high!)
-      // Initialisierung der State Machines für FATAR Scan-Controller, anschlagdynamisch
-      for (uint8_t i = 0; i < KEYS; i++) {
-        UpperKeyState[i] = t_idle;
-        LowerKeyState[i] = t_idle;
-      }
-      scanParams.prePulses = 6; 
-      scanParams.keyOffset = 3; 
-      Timer1.setPeriod(500);  // Timer1 auf 500 us einstellen
       break;
     case drv_sr61:
     default:
@@ -491,23 +526,7 @@ void configurePorts(uint8_t driverType) {
       PORTB = B00111000; // Pull-ups für SR61- und BASS25-Eingänge aktivieren
       DDRD =  B00000110; // Nur Txd/Rxd und LED benutzt
       PORTD = B11111110; // Pull-ups für Eingänge aktivieren, LED PD2 off (high!)
-      // Initialisierung der State Machines für SR61 Scan-Controller, nicht anschlagdynamisch
-      for (uint8_t i = 0; i < KEYS; i++) {
-        UpperKeyState[i] = (1 << SR_UPR);
-        LowerKeyState[i] = (1 << SR_LWR);
-      }
-      scanParams.prePulses = 0; 
-      scanParams.keyOffset = 0; 
       Timer1.setPeriod(1000); // Timer1 auf 1000 us einstellen
-  }
-  for (uint8_t i = 0; i < KEYS; i++) {
-    UpperKeyTimer[i] = 255;
-    LowerKeyTimer[i] = 255;
-    CommonKeyState[i] = 0;
-  }
-  // Initialisierung der Pedal-Kontaktzustände
-  for (uint8_t i = 0; i < PEDALKEYS; i++) {
-    PedalContactState[i] = (1 << SR_PED);
   }
 }
 
