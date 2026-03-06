@@ -105,7 +105,7 @@ typedef struct {
 } menuEntryType;
 
 
-// Diese Tabelle enthält die Menüstruktur, die in der Excel-Tabelle HX35_menuItems.xlsx definiert ist
+// Diese Tabelle enthält die Menüstruktur, die in der Excel-Tabelle MIDI_menuItems.xlsx definiert ist
 // Menü-Text, Link zu Untermenüs, Zeiger auf Werte, die bei Änderung geändert werden sollen, 
 // Action-Routine bei Änderung, Min- und Maximalwerte für die Editierung
 
@@ -114,7 +114,7 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Lower Channel", m_lower_ch, &MenuValues[1], NULL, 1, 16},
   {"Pedal Channel", m_pedal_ch, &MenuValues[2], NULL, 1, 16},
   {"Swell CC", m_swell, &MenuValues[3], NULL, -1, 127},
-  {"Pitchwheel Pot", m_pitchwheel, &MenuValues[4], NULL, -1, 15},
+  {"Pitchwhl Pot#", m_pitchwheel, &MenuValues[4], NULL, -1, 15},
   {"FootSw 1 CC", m_footsw1, &MenuValues[5], NULL, -1, 127},
   {"FootSw 2 CC", m_footsw2, &MenuValues[6], NULL, -1, 127},
   {"Keyboard", m_kbd_driver, NULL, NULL, -1, -1},
