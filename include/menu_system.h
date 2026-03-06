@@ -70,9 +70,11 @@ bool menuInit() {
 void markEEPROMdifferent() {
   // Zeigt rechts unten einen Stern an, wenn der aktuelle Wert 
   // von dem in EEPROM gespeicherten Wert abweicht
+  lcd.setCursor(15, 1);
   if (*currentMenuEntry.editValuePtr != (int8_t)EEPROM.read(MenuItemActiveIdx + EEPROM_MENUDEF_IDX)) {
-    lcd.setCursor(15, 1);
     lcd.write('*'); // geänderte Werte mit Stern markieren
+  } else {
+    lcd.write(' '); // kein Stern, wenn Wert mit EEPROM übereinstimmt
   }
 }
 

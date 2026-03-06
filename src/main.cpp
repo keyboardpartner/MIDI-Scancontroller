@@ -207,7 +207,6 @@ void ScanPedal() {
       if (mk_ped == 0) {
         // Pedal gedrückt, NoteOn mit fester Dynamik
         MidiSendNoteOnNoDyn(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
-        ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
       } else {
         // Pedal losgelassen
         MidiSendNoteOff(MenuValues[m_pedal_ch], MenuValues[MENU_BASE_PED] + scankey);
@@ -282,7 +281,6 @@ void ScanManualsFatar1() {
             br = contacts_br & (1 << FT_LWR); // Break-Kontakt Lower lesen
             LowerCheckstate(scankey, mk, br);
             CommonKeyState[scankey] = contacts_mk | contacts_br; // Zustand der Taste in beiden Manuals
-
           }
         } else {
           // Preset-Tasten 0..11
@@ -315,14 +313,12 @@ void ScanManualsFatar1() {
 void ScanManualsFatar2() {
   // Upper und Lower scannen, altes FatarScan2-Board
   // Zeitbedarf für Abfrage beider 61er Manuale:
-  // etwa 165µs bei 20 MHz Takt, 200µs bei 16 MHz
+  // etwa 162µs bei 20 MHz Takt, 200µs bei 16 MHz
+  AnyKeyPressed = false;
   _SET_TEST; // Test Pin für Debugging, z.B. mit Oszilloskop
   delayMicroseconds(1);
   _CLR_TEST;
-  AnyKeyPressed = false;
-  uint8_t mk, br, pin_d;
-  // Reset des 4017 T-Drive Counters
-  // Reset des 4024 Sense Counters
+  // Reset des 4017 T-Drive Counters und des 4024 Sense Counters
   _SET_FT_TDRV_RST;
   _SET_FT_SENSE_RST;
   _NOP_DLY;
@@ -334,7 +330,7 @@ void ScanManualsFatar2() {
     uint8_t matrixkey = 0;  // erste Taste, ggf. mit Offset
     for (uint8_t tdrive = 0; tdrive < scanParams.keysPerGroup; tdrive++) {
       uint8_t scankey = matrixkey + tdrive + scanParams.keyOffset;
-      pin_d = (PIND & FT_CONT_MASK2) | (PINB & (1 << BR_UPR)); // relevante Pins von Port B und D lesen
+      uint8_t pin_d = (PIND & FT_CONT_MASK2) | (PINB & (1 << BR_UPR)); // relevante Pins von Port B und D lesen
       // Increment Sense Counter
       // Überlauf ist schon für nächste Gruppe, da der 4024 weiter durchläuft
       _SET_FT_SENSE_INC;
@@ -342,8 +338,8 @@ void ScanManualsFatar2() {
       _CLR_FT_SENSE_INC;
       // Settle Time nutzen zur Auswertung der Kontakte
       if ((CommonKeyState[scankey] != pin_d) | pin_d) {
-        mk = pin_d & (1 << MK_UPR); // Make-Kontakt Upper lesen
-        br = pin_d & (1 << BR_UPR); // Break-Kontakt Upper lesen, hier Port B!
+        uint8_t mk = pin_d & (1 << MK_UPR); // Make-Kontakt Upper lesen
+        uint8_t br = pin_d & (1 << BR_UPR); // Break-Kontakt Upper lesen, hier Port B!
         UpperCheckstate(scankey, mk, br);
         mk = pin_d & (1 << MK_LWR); // Make-Kontakt Lower lesen
         br = pin_d & (1 << BR_LWR); // Break-Kontakt Lower lesen
@@ -368,9 +364,6 @@ void ScanManualsSR61() {
   delayMicroseconds(1);
   _CLR_TEST;
   AnyKeyPressed = false; //Timing hier nicht wichtig
-  uint8_t scankey, scankey_w_offs; // aktuelle Taste
-  uint8_t mk_upr, mk_upr_old;
-  uint8_t mk_lwr, mk_lwr_old;
   _SET_SR_LOAD;
   _NOP_DLY;
   _NOP_DLY;
@@ -379,15 +372,14 @@ void ScanManualsSR61() {
   _NOP_DLY;
   _CLR_SR_CLK;
   _CLR_SR_LOAD; // Load LOW
-  for (scankey = 0; scankey < scanParams.playableKeys; scankey++) {
-    mk_upr = PINB & (1 << SR_UPR); // Make-Kontakt Pedal lesen, active LOW
+  for (uint8_t scankey = 0; scankey < scanParams.playableKeys; scankey++) {
+    uint8_t mk = PINB & (1 << SR_UPR); // Make-Kontakt Pedal lesen, active LOW
     // Manual hat nur Make-Kontakt, deshalb keine State Machine
-    mk_upr_old = UpperKeyState[scankey];
-    scankey_w_offs = scankey + scanParams.keyOffset;
-    if (mk_upr != mk_upr_old) {
+    uint8_t scankey_w_offs = scankey + scanParams.keyOffset; // aktuelle Taste mit Offset
+    if (mk != UpperKeyState[scankey]) {
       // Zustand hat sich geändert
-      UpperKeyState[scankey] = mk_upr;
-      if (mk_upr == 0) {
+      UpperKeyState[scankey] = mk;
+      if (mk == 0) {
         // Pedal gedrückt
         MidiSendNoteOnNoDyn(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey_w_offs); // Upper NoteOn mit fester Dynamik
       } else {
@@ -395,13 +387,12 @@ void ScanManualsSR61() {
         MidiSendNoteOff(MenuValues[m_upper_ch], MenuValues[MENU_BASE_UPR] + scankey_w_offs); // Upper NoteOff
       }
     }
-    mk_lwr = PINB & (1 << SR_LWR); // Make-Kontakt Pedal lesen, active LOW
+    mk = PINB & (1 << SR_LWR); // Make-Kontakt Pedal lesen, active LOW
     // Manual hat nur Make-Kontakt, deshalb keine State Machine
-    mk_lwr_old = LowerKeyState[scankey];
-    if (mk_lwr != mk_lwr_old) {
+    if (mk != LowerKeyState[scankey]) {
       // Zustand hat sich geändert
-      LowerKeyState[scankey] = mk_lwr;
-      if (mk_lwr == 0) {
+      LowerKeyState[scankey] = mk;
+      if (mk == 0) {
         // Pedal gedrückt
         MidiSendNoteOnNoDyn(MenuValues[m_lower_ch], MenuValues[MENU_BASE_LWR] + scankey_w_offs); // Lower NoteOn mit fester Dynamik
       } else {
@@ -456,10 +447,10 @@ void handleFootSw() {
   if ((footswState != fs1_old) && (MenuValues[m_footsw1] >= 0)) {
     // Zustand hat sich geändert
     fs1_old = footswState;
+    ledTimerStart(50); // Board-LED für 20 Timer-Zyklen einschalten
     if (footswState == 0) {
       // Footswitch gedrückt, MIDI CC mit Wert 127 senden
       MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw1], 127);
-      ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
     } else {
       // Footswitch losgelassen, MIDI CC mit Wert 0 senden
       MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw1], 0);
@@ -469,10 +460,10 @@ void handleFootSw() {
   if ((footswState != fs2_old) && (MenuValues[m_footsw2] >= 0)) {
     // Zustand hat sich geändert
     fs2_old = footswState;
+    ledTimerStart(50); // Board-LED für 50 Timer-Zyklen einschalten
     if (footswState == 0) {
       // Footswitch gedrückt, MIDI CC mit Wert 127 senden
       MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw2], 127);
-      ledTimerStart(20); // Board-LED für 20 Timer-Zyklen einschalten
     } else {
       // Footswitch losgelassen, MIDI CC mit Wert 0 senden
       MidiSendController(MenuValues[m_upper_ch], MenuValues[m_footsw2], 0);
@@ -643,7 +634,7 @@ void onMPXChange(uint8_t inputIndex, uint8_t value) {
   } else if (MenuValues[MENU_POT_CC + inputIndex] >= 0) {
     // andere Potentiometer senden MIDI CC-Nummer aus MenuValues, Wert 0..127 direkt senden
     // nur senden, wenn CC zugewiesen ist, bei -1 ist kein CC zugewiesen
-   ledTimerStart(20); // Board-LED für 50 Timer-Zyklen einschalten
+   ledTimerStart(50); // Board-LED für 50 Timer-Zyklen einschalten
    MidiSendController(MenuValues[m_upper_ch], MenuValues[MENU_POT_CC + inputIndex], value); // Volume Upper
   }
 }
@@ -732,7 +723,6 @@ void timer1SemaphoreISR() {
   Timer1Semaphore++;
   Timer1RoundRobin++;
   Timer1RoundRobin &= 0x0F; // nur die unteren 4 Bits behalten = 16 Durchläufe bis zum nächsten vollen Zyklus
-    // Alle 16 Durchläufe, also alle 8 ms bei 500 us Timer-Intervall, wird die LCD-Button-Abfrage ausgelöst
   if (lcdPresent) {
     // Timer-Interrupt erledigt auch das Scannen des MenuPanel-Encoders
     lcd.encoderISR();
