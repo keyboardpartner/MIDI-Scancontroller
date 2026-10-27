@@ -48,7 +48,6 @@ volatile uint8_t Timer1RoundRobin = 0;
 
 bool lcdPresent = false;
 
-
 #ifdef PANEL16
   // Für Panel16 mit I2C-Interface
   #include "Panel16.h"
@@ -136,7 +135,6 @@ void UpperCheckstate(uint8_t scankey, uint8_t mk, uint8_t br) {
     break;
   }
 }
-
 
 // #############################################################################
 
