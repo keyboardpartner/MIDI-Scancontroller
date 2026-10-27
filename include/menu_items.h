@@ -161,7 +161,7 @@ const menuEntryType MenuItems[MENU_ITEMCOUNT] PROGMEM = {
   {"Btn 15 Mode", m_btn_mode, &MenuValues[48], &setBtnMode, 0, 3},
   {"Btn 16 Mode", m_btn_mode, &MenuValues[49], &setBtnMode, 0, 3},
   {"Btn Mode", m_btn_mode, NULL, NULL, -1, -1},
-  {"Kbd Driver", m_kbd_driver, &MenuValues[51], &setKbdDriver, 0, 4},
+  {"Kbd Driver", m_kbd_driver, &MenuValues[51], &setKbdDriver, 0, 5},
   {"Velocity Min", m_kbd_driver, &MenuValues[52], &setDynSlope, 1, 30},
   {"Velocity MaxAdj", m_kbd_driver, &MenuValues[53], NULL, 0, 20},
   {"Velocity Slope", m_kbd_driver, &MenuValues[54], &setDynSlope, 1, 40},

@@ -21,7 +21,8 @@
 
 #define LCD_I2C
 #define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
-//#define PANEL16
+// #define PANEL16
+#define PRESET16 // ohne blinkende LEDs, nur Presets, sendet nur Program Changes
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -49,12 +50,20 @@ bool lcdPresent = false;
 
 
 #ifdef PANEL16
-  // Für LCD mit I2C-Interface
+  // Für Panel16 mit I2C-Interface
   #include "Panel16.h"
   #define PANEL16_I2C_ADDR 0x62
   Panel16 panel16(PANEL16_I2C_ADDR);
 #endif
 bool panel16Present = false;
+
+#ifdef PRESET16
+  // Für Preset16 mit I2C-Interface, sendet nur Program Changes
+  #include "Panel16.h"
+  #define PRESET16_I2C_ADDR 0x60
+  Panel16 preset16(PRESET16_I2C_ADDR);
+#endif
+bool preset16Present = false;
 
 #ifdef ANLG_MPX
   // Für MPX-gestützte analoge Eingänge und Schweller
@@ -418,12 +427,15 @@ void scanKeybeds() {
       //break;
     case drv_fatar1_61:
     case drv_fatar1_73:
+      ScanPedal();    // 25 us bei 20 MHz
       ScanManualsFatar1(); // 270 us bei 20 MHz
       break;
     case drv_fatar2:
+      ScanPedal();    // 25 us bei 20 MHz
       ScanManualsFatar2();   // 250 us bei 20 MHz
       break;
     case drv_sr61:
+      ScanPedal();    // 25 us bei 20 MHz
       ScanManualsSR61();     // 81 us bei 20 MHz
       break;
     default:
@@ -691,6 +703,33 @@ void onPanel16press(uint8_t bnt_number) {
 }
 #endif
 
+#ifdef PRESET16
+// #############################################################################
+// Callback-Funktion für Preset16, liefert derzeit gedrückten Button
+// Wird von der Panel16-Library aufgerufen, während ein Panel16-Button gedrückt
+// und auf Loslassen gewartet wird. Dadurch können die Manuale weiter
+// gescannt werden, ohne die Scan-Funktion zu blockieren
+// #############################################################################
+
+void onPreset16releaseWait() {
+  scanKeybeds();
+  yield();
+  tickerObject.update();
+}
+
+void onPreset16press(uint8_t bnt_number) {
+  ledTimerStart(50); // Board-LED für 50 Timer-Zyklen einschalten
+  // Button Mode 2 = Program Change, sendet ein MIDI Program Change mit der Nummer aus MenuValues[m_btn1 + bnt_number]
+  MidiSendProgramChange(MenuValues[m_upper_ch], bnt_number);
+  for (uint8_t i = 0; i < 16; i++) {
+    bool is_on = (i == bnt_number);
+    preset16.setLEDonOff(i, is_on); // alle Program Change LEDs ausschalten, nur gültige an
+    preset16.setLEDblink(i, 0); // sicherheitshalber auch den Blink-Zustand zurücksetzen
+  }
+  preset16.waitReleased();
+}
+#endif
+
 #ifdef LCD_I2C
 void onMenuButton(uint8_t button) {
   // Callback-Funktion für MenuPanel-Button, liefert gedrückten Button
@@ -811,6 +850,26 @@ void setup() {
     }
   #endif
 
+  #ifdef PRESET16
+  /// TODO: Implement additional initialization for PRESET16 if needed
+    Wire.beginTransmission(PRESET16_I2C_ADDR); // Panel I2C-Adresse
+    if (Wire.endTransmission(true) == 0) {
+      preset16Present = true;
+      preset16.begin();
+      preset16.setPressCallback(onPreset16press); 
+      preset16.setWaitCallback(onPreset16releaseWait); // Callback-Funktion für Button-Handling registrieren
+      for (uint8_t i = 0; i < 16; i++) {
+        preset16.setLEDstate(i, 1); // LEDs anhand ButtonMode setzen
+      }
+      bool is_first_prg_ch = true; // Flag, um die erste gefundene Program Change LED einzuschalten
+      for (uint8_t i = 0; i < 16; i++) {
+        preset16.setLEDonOff(i, is_first_prg_ch); // alle anderen Program Change LEDs ausschalten
+        preset16.setLEDblink(i, 0); // alle anderen Program Change LEDs ausschalten
+        is_first_prg_ch = false; // nur die erste gefundene Program Change LED einschalten
+      }
+    }
+  #endif
+
   #ifdef ANLG_MPX
     mpxPots.setChangeAction(onMPXChange); // MPX-gestützte analoge Eingänge initialisieren, Callback-Funktion für Änderungen übergeben
     mpxPots.resetMPX(); // MPX-SR 74HC164 zurücksetzen
@@ -869,6 +928,19 @@ void loop() {
         }
       }
     #endif
+
+    #ifdef PRESET16
+      // Test für Preset16 Button-Abfrage
+      if (preset16Present) {
+        if (Timer1RoundRobin == 8) {
+          preset16.checkRow(0); // aus Zeitgründen in zwei Hälften aufteilen
+        }
+        if (Timer1RoundRobin == 12) {
+          preset16.checkRow(1); // aus Zeitgründen in zwei Hälften aufteilen
+        }
+      }
+    #endif
+
 
     #ifdef ANLG_MPX
       if (Timer1RoundRobin == 2) {
