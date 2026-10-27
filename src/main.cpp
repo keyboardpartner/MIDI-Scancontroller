@@ -17,12 +17,12 @@
 // https://github.com/MCUdude/MiniCore/tree/master/avr/bootloaders/optiboot_flash/bootloaders
 //
 
-// Define used modules here, comment out unused modules to save program memory
+// Define used modules here, comment out unused modules to save program memory and improve scan speed
 
-#define LCD_I2C
+#define LCD_I2C   // MenuPanel mit LCD I2C-Interface
 #define ANLG_MPX  // Für MPX-gestützte analoge Eingänge und Schweller
-// #define PANEL16
-#define PRESET16 // ohne blinkende LEDs, nur Presets, sendet nur Program Changes
+#define PANEL16   // voll konfigurierbare Buttons
+// #define PRESET16  // ohne blinkende LEDs, nur Presets, sendet nur Program Changes
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -50,6 +50,7 @@ bool lcdPresent = false;
 
 #ifdef PANEL16
   // Für Panel16 mit I2C-Interface
+  // Zeitaufwendige Abfrage der Buttons, nur bei Bedarf einfügen
   #include "Panel16.h"
   #define PANEL16_I2C_ADDR 0x62
   Panel16 panel16(PANEL16_I2C_ADDR);
@@ -58,6 +59,7 @@ bool panel16Present = false;
 
 #ifdef PRESET16
   // Für Preset16 mit I2C-Interface, sendet nur Program Changes
+  // Zeitaufwendige Abfrage der Buttons, nur bei Bedarf einfügen
   #include "Panel16.h"
   #define PRESET16_I2C_ADDR 0x60
   Panel16 preset16(PRESET16_I2C_ADDR);
@@ -418,11 +420,8 @@ void ScanManualsSR61() {
 
 void scanKeybeds() {
   // Alle Manuale und Pedale scannen, MIDI-Events senden, MIDI-Merge durchführen
-  ScanPedal();    // 25 us bei 20 MHz
   switch (MenuValues[MENU_KBD_DRIVER]) {
     case drv_pulse6105:
-      //ScanManualsPulse6105(); // 270 us bei 20 MHz
-      //break;
     case drv_fatar1_61:
     case drv_fatar1_73:
       ScanPedal();    // 25 us bei 20 MHz
@@ -437,6 +436,7 @@ void scanKeybeds() {
       ScanManualsSR61();     // 81 us bei 20 MHz
       break;
     default:
+      // "none", kein Treiber, keine Aktion
       break;
   }
   MidiMerge();    // nicht der Rede wert, falls nichts anliegt
